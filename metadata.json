@@ -1,0 +1,6 @@
+{
+  "name": "中国近现代史纲要知识图谱与全景时间轴画布",
+  "description": "基于横向时间轴标准尺度与立体思维导图的中国近现代史纲要全景交互画布，精细呈现大会决策、武装斗争、经典文献与历史规律及内在逻辑连线。",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
