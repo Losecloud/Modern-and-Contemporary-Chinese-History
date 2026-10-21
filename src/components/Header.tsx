@@ -12,6 +12,7 @@ export const Header: React.FC<HeaderProps> = ({
   onOpenStudyGuide,
 }) => {
   const periods = [
+    { id: 0, name: '马克思主义' },
     { id: 1, name: '旧民主主义' },
     { id: 2, name: '新民主主义' },
     { id: 3, name: '土地革命' },
@@ -28,7 +29,7 @@ export const Header: React.FC<HeaderProps> = ({
         href="#"
         className="text-lg font-bold tracking-tight text-slate-900 dark:text-slate-100 whitespace-nowrap shrink-0 hover:opacity-85 transition-opacity"
       >
-        史纲全景时空画布 (1840—2024)
+        马原·史纲全景时空画布 (1516—2024)
       </a>
 
       {/* Zone 2: 7 Periods Navigation - Active state is bold neutral text */}

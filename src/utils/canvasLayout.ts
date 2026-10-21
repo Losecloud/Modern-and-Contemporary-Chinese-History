@@ -1,4 +1,5 @@
-import { TrackId, PeriodId } from '../types/history';
+import { TrackId, PeriodId, HistoryEvent } from '../types/history';
+import { HISTORY_EVENTS } from '../data/historyData';
 
 export interface CardLayoutPosition {
   id: string;
@@ -26,136 +27,61 @@ export interface YearTick {
   isKeyYear?: boolean;
 }
 
-// Fixed horizontal Y positions for the 3 tracks to guarantee perfect horizontal alignment
+export interface EventLayoutCoord {
+  x: number;
+  y: number;
+  exactX: number;
+  isShifted: boolean;
+  dateLabel: string;
+  shiftAmount: number;
+  width?: number;
+}
+
+export interface LeaderLineInfo {
+  id: string;
+  title: string;
+  track: TrackId;
+  y: number;
+  exactX: number;
+  placedX: number;
+  shiftAmount: number;
+  dateLabel: string;
+  tier: number;
+}
+
+// Fixed horizontal Y positions for the 3 tracks
+// Track 3 (思想理论) height is doubled (720px) to accommodate upper 史纲 works and lower 马克思主义思想
 export const TRACK_Y_POSITIONS: Record<TrackId, { y: number; label: string; height: number }> = {
   meeting: { y: 130, label: '核心会议与党内决策', height: 360 },
   armed: { y: 530, label: '革命武装、战役与斗争', height: 350 },
-  works: { y: 920, label: '思想理论、经典著作与经验教训', height: 360 },
+  works: { y: 920, label: '思想理论、经典著作与经验教训', height: 720 },
 };
+
+// Row 3 lower section Y coordinate for Marxism and Scientific Socialism ideological works
+export const WORKS_MARXISM_Y = 1290;
 
 export const CARD_WIDTH = 380;
-export const CANVAS_HEIGHT = 1380;
-
-// Explicit layout positions mapped chronologically and track-aligned across 1840 - 2024
-export const EVENT_LAYOUT_COORDS: Record<string, { x: number; y: number; width?: number }> = {
-  // === Period 1: 1840 - 1919 反对外国侵略与早期救亡图存探索 (X: 80 to 4450) ===
-  e_1840_opium_war: { x: 120, y: TRACK_Y_POSITIONS.armed.y },
-  e_1841_sanyuanli: { x: 550, y: TRACK_Y_POSITIONS.armed.y },
-  e_1841_early_thinkers: { x: 550, y: TRACK_Y_POSITIONS.works.y },
-  e_1840_characteristics: { x: 950, y: TRACK_Y_POSITIONS.works.y },
-  e_1851_taiping: { x: 1350, y: TRACK_Y_POSITIONS.armed.y },
-  e_1853_land_tianchao: { x: 1350, y: TRACK_Y_POSITIONS.works.y },
-  e_1861_westernization: { x: 1800, y: TRACK_Y_POSITIONS.meeting.y },
-  e_1894_early_reform: { x: 2250, y: TRACK_Y_POSITIONS.works.y },
-  e_1895_maguan: { x: 2250, y: TRACK_Y_POSITIONS.armed.y },
-  e_1898_wuxu_reform: { x: 2700, y: TRACK_Y_POSITIONS.meeting.y },
-  e_1901_xinchou_reforms: { x: 3100, y: TRACK_Y_POSITIONS.meeting.y },
-  e_1903_revolutionary_writings: { x: 3100, y: TRACK_Y_POSITIONS.works.y },
-  e_1905_tongmenghui: { x: 3550, y: TRACK_Y_POSITIONS.meeting.y },
-  e_1911_xinhai_revolution: { x: 3950, y: TRACK_Y_POSITIONS.armed.y },
-  e_1912_provisional_gov: { x: 4000, y: TRACK_Y_POSITIONS.meeting.y },
-  e_1913_republic_struggle: { x: 4000, y: TRACK_Y_POSITIONS.works.y },
-
-  // === Period 2: 1919 - 1927 五四运动与大革命时期 (X: 4500 to 7750) ===
-  e_1915_new_culture: { x: 4550, y: TRACK_Y_POSITIONS.works.y },
-  e_1919_may4th: { x: 4750, y: TRACK_Y_POSITIONS.armed.y },
-  p1_early_org: { x: 5000, y: TRACK_Y_POSITIONS.meeting.y },
-  p1_cpc_1st: { x: 5450, y: TRACK_Y_POSITIONS.meeting.y },
-  p1_worker_strikes: { x: 5750, y: TRACK_Y_POSITIONS.armed.y },
-  p1_cpc_2nd: { x: 5900, y: TRACK_Y_POSITIONS.meeting.y },
-  p1_cpc_3rd: { x: 6350, y: TRACK_Y_POSITIONS.meeting.y },
-  p1_kmt_1st: { x: 6800, y: TRACK_Y_POSITIONS.meeting.y },
-  e_1924_huangpu: { x: 6950, y: TRACK_Y_POSITIONS.armed.y },
-  p1_cpc_4th: { x: 7250, y: TRACK_Y_POSITIONS.meeting.y },
-  p1_may30th: { x: 6600, y: TRACK_Y_POSITIONS.armed.y },
-  p1_mao_works_early: { x: 6800, y: TRACK_Y_POSITIONS.works.y },
-  p1_north_expedition: { x: 7100, y: TRACK_Y_POSITIONS.armed.y },
-  e_1927_great_rev_end: { x: 7350, y: TRACK_Y_POSITIONS.works.y },
-
-  // === Period 3: 1927 - 1937 土地革命战争时期 (X: 7800 to 11750) ===
-  p2_nanchang_uprising: { x: 7850, y: TRACK_Y_POSITIONS.armed.y },
-  p2_aug7_meeting: { x: 8050, y: TRACK_Y_POSITIONS.meeting.y },
-  p2_autumn_harvest: { x: 8300, y: TRACK_Y_POSITIONS.armed.y },
-  p2_sanwan_reorg: { x: 8750, y: TRACK_Y_POSITIONS.armed.y },
-  p2_jinggang_established: { x: 9200, y: TRACK_Y_POSITIONS.armed.y },
-  p2_cpc_6th: { x: 8500, y: TRACK_Y_POSITIONS.meeting.y },
-  p2_land_revolution_laws: { x: 8950, y: TRACK_Y_POSITIONS.works.y },
-  p2_mao_works_road: { x: 9400, y: TRACK_Y_POSITIONS.works.y },
-  p2_gutian_meeting: { x: 9200, y: TRACK_Y_POSITIONS.meeting.y },
-  p2_soviet_republic: { x: 9800, y: TRACK_Y_POSITIONS.armed.y },
-  e_1931_left_deviations: { x: 10100, y: TRACK_Y_POSITIONS.works.y },
-  p2_zunyi_meeting: { x: 10450, y: TRACK_Y_POSITIONS.meeting.y },
-  p2_wayaobao_meeting: { x: 10900, y: TRACK_Y_POSITIONS.meeting.y },
-  e_1935_long_march_vict: { x: 10700, y: TRACK_Y_POSITIONS.armed.y },
-  e_1936_xian_incident: { x: 11350, y: TRACK_Y_POSITIONS.armed.y },
-
-  // === Period 4: 1931/1937 - 1945 全民族抗日战争时期 (X: 11800 to 15350) ===
-  e_1931_sep18_incident: { x: 11850, y: TRACK_Y_POSITIONS.armed.y },
-  p3_kmt_plenum_3rd: { x: 12150, y: TRACK_Y_POSITIONS.meeting.y },
-  e_1937_lugouqiao_war: { x: 12450, y: TRACK_Y_POSITIONS.armed.y },
-  e_1937_philosophical_works: { x: 12450, y: TRACK_Y_POSITIONS.works.y },
-  p3_luochuan_meeting: { x: 12600, y: TRACK_Y_POSITIONS.meeting.y },
-  p3_protracted_war: { x: 12900, y: TRACK_Y_POSITIONS.works.y },
-  p3_sixth_plenum_6th: { x: 13150, y: TRACK_Y_POSITIONS.meeting.y },
-  p3_new_democracy_works: { x: 13500, y: TRACK_Y_POSITIONS.works.y },
-  e_1940_hundred_regiments: { x: 13700, y: TRACK_Y_POSITIONS.armed.y },
-  p3_rectification: { x: 14000, y: TRACK_Y_POSITIONS.works.y },
-  p3_seventh_plenum_6th: { x: 14250, y: TRACK_Y_POSITIONS.meeting.y },
-  p3_cpc_7th: { x: 14700, y: TRACK_Y_POSITIONS.meeting.y },
-  e_1945_victory_anti_japanese: { x: 14950, y: TRACK_Y_POSITIONS.armed.y },
-
-  // === Period 5: 1945 - 1949 解放战争时期 (X: 15400 to 18550) ===
-  e_1945_chongqing_talks: { x: 15450, y: TRACK_Y_POSITIONS.meeting.y },
-  p4_may4th_directive: { x: 15700, y: TRACK_Y_POSITIONS.works.y },
-  e_1946_civil_war_surge: { x: 15950, y: TRACK_Y_POSITIONS.armed.y },
-  p4_land_law_outline: { x: 16300, y: TRACK_Y_POSITIONS.works.y },
-  e_1946_second_front: { x: 16400, y: TRACK_Y_POSITIONS.armed.y },
-  e_1947_third_road_fall: { x: 16500, y: TRACK_Y_POSITIONS.works.y },
-  e_1948_jinsui_speech: { x: 16800, y: TRACK_Y_POSITIONS.works.y },
-  p4_seventh_plenum_2nd: { x: 17100, y: TRACK_Y_POSITIONS.meeting.y },
-  p4_peoples_dictatorship: { x: 17500, y: TRACK_Y_POSITIONS.works.y },
-  p4_cppcc_1st_session: { x: 17900, y: TRACK_Y_POSITIONS.meeting.y },
-
-  // === Period 6: 1949 - 1978 社会主义过渡与建设初步探索 (X: 18600 to 21550) ===
-  e_1949_prc_founded: { x: 18650, y: TRACK_Y_POSITIONS.meeting.y },
-  p5_seventh_plenum_3rd: { x: 19100, y: TRACK_Y_POSITIONS.meeting.y },
-  e_1950_korean_war: { x: 19100, y: TRACK_Y_POSITIONS.armed.y },
-  e_1953_socialist_transformation: { x: 19550, y: TRACK_Y_POSITIONS.works.y },
-  e_1954_first_npc: { x: 19800, y: TRACK_Y_POSITIONS.meeting.y },
-  p5_ten_relations: { x: 20000, y: TRACK_Y_POSITIONS.works.y },
-  p5_cpc_8th: { x: 20450, y: TRACK_Y_POSITIONS.meeting.y },
-  p5_internal_contradictions: { x: 20900, y: TRACK_Y_POSITIONS.works.y },
-  p5_ninth_plenum_8th: { x: 21150, y: TRACK_Y_POSITIONS.meeting.y },
-  e_1962_7000_meeting: { x: 21350, y: TRACK_Y_POSITIONS.meeting.y },
-
-  // === Period 7: 1978 - 2024 改革开放与中国特色社会主义新时代 (X: 21600 to 27900) ===
-  p6_truth_criterion: { x: 21650, y: TRACK_Y_POSITIONS.works.y },
-  p6_third_plenum_11th: { x: 22050, y: TRACK_Y_POSITIONS.meeting.y },
-  e_1979_four_cardinal: { x: 22250, y: TRACK_Y_POSITIONS.works.y },
-  p6_sixth_plenum_11th: { x: 22500, y: TRACK_Y_POSITIONS.meeting.y },
-  p6_cpc_12th: { x: 22950, y: TRACK_Y_POSITIONS.meeting.y },
-  e_1984_third_plenum_12th: { x: 23350, y: TRACK_Y_POSITIONS.meeting.y },
-  p6_cpc_13th: { x: 23800, y: TRACK_Y_POSITIONS.meeting.y },
-  p6_southern_talks: { x: 24250, y: TRACK_Y_POSITIONS.works.y },
-  p6_cpc_14th: { x: 24550, y: TRACK_Y_POSITIONS.meeting.y },
-  e_1997_cpc_15th: { x: 24950, y: TRACK_Y_POSITIONS.meeting.y },
-  e_2002_cpc_16th_17th: { x: 25400, y: TRACK_Y_POSITIONS.meeting.y },
-  e_2012_cpc_18th: { x: 25850, y: TRACK_Y_POSITIONS.meeting.y },
-  e_2013_third_plenum_18th: { x: 26250, y: TRACK_Y_POSITIONS.meeting.y },
-  e_2017_cpc_19th: { x: 26650, y: TRACK_Y_POSITIONS.meeting.y },
-  e_2021_centenary_plenum: { x: 27050, y: TRACK_Y_POSITIONS.works.y },
-  e_2022_cpc_20th: { x: 27450, y: TRACK_Y_POSITIONS.meeting.y },
-  e_2024_third_plenum_20th: { x: 27750, y: TRACK_Y_POSITIONS.meeting.y },
-};
+export const CANVAS_HEIGHT = 1750;
 
 export const PERIOD_BOUNDARIES: PeriodBoundary[] = [
+  {
+    id: 0,
+    title: '序、马克思主义的创立背景与思想渊源',
+    shortTitle: '马克思主义',
+    yearRange: '1516 — 1840',
+    startX: 80,
+    endX: 3780,
+    width: 3700,
+    theme: '空想社会主义演进 · 欧洲三大工人运动 · 三大理论来源 · 19世纪三大自然科学发现',
+    accentColor: '#475569',
+  },
   {
     id: 1,
     title: '一、反对外国侵略与早期救亡图存探索',
     shortTitle: '早期救亡探索',
     yearRange: '1840 — 1919',
-    startX: 80,
-    endX: 4480,
+    startX: 3800,
+    endX: 8200,
     width: 4400,
     theme: '两半社会形成 · 太平天国 · 洋务运动 · 戊戌变法 · 辛亥革命',
     accentColor: '#B91C1C',
@@ -165,8 +91,8 @@ export const PERIOD_BOUNDARIES: PeriodBoundary[] = [
     title: '二、五四运动与中国共产党创建、大革命时期',
     shortTitle: '五四与大革命',
     yearRange: '1919 — 1927',
-    startX: 4500,
-    endX: 7780,
+    startX: 8220,
+    endX: 11500,
     width: 3280,
     theme: '新民主主义开端 · 开天辟地 · 第一次国共合作 · 北伐胜利与背叛',
     accentColor: '#DC2626',
@@ -176,8 +102,8 @@ export const PERIOD_BOUNDARIES: PeriodBoundary[] = [
     title: '三、土地革命战争与中国革命新道路',
     shortTitle: '土地革命时期',
     yearRange: '1927 — 1937',
-    startX: 7800,
-    endX: 11780,
+    startX: 11520,
+    endX: 15500,
     width: 3980,
     theme: '武装起义 · 支部建在连上 · 农村包围城市 · 遵义生死转折',
     accentColor: '#D97706',
@@ -187,8 +113,8 @@ export const PERIOD_BOUNDARIES: PeriodBoundary[] = [
     title: '四、全民族抗日战争的中流砥柱',
     shortTitle: '抗日战争时期',
     yearRange: '1931/1937 — 1945',
-    startX: 11800,
-    endX: 15380,
+    startX: 15520,
+    endX: 19100,
     width: 3580,
     theme: '全面抗战 · 《论持久战》 · 新民主主义成熟 · 中共七大',
     accentColor: '#059669',
@@ -198,8 +124,8 @@ export const PERIOD_BOUNDARIES: PeriodBoundary[] = [
     title: '五、人民解放战争与筹建新中国',
     shortTitle: '解放战争时期',
     yearRange: '1945 — 1949',
-    startX: 15400,
-    endX: 18580,
+    startX: 19120,
+    endX: 22300,
     width: 3180,
     theme: '土地改革 · 三大战役 · 两个务必 · 协商建国',
     accentColor: '#7C3AED',
@@ -209,8 +135,8 @@ export const PERIOD_BOUNDARIES: PeriodBoundary[] = [
     title: '六、社会主义过渡与建设道路初步探索',
     shortTitle: '过渡与初步探索',
     yearRange: '1949 — 1978',
-    startX: 18600,
-    endX: 21580,
+    startX: 22320,
+    endX: 25300,
     width: 2980,
     theme: '恢复经济 · 一化三改 · 《论十大关系》 · 中共八大主要矛盾',
     accentColor: '#2563EB',
@@ -220,104 +146,280 @@ export const PERIOD_BOUNDARIES: PeriodBoundary[] = [
     title: '七、改革开放与中国特色社会主义新时代',
     shortTitle: '改革开放与新时代',
     yearRange: '1978 — 2024',
-    startX: 21600,
-    endX: 28200,
+    startX: 25320,
+    endX: 31920,
     width: 6600,
     theme: '伟大历史转折 · 邓小平理论成熟 · 十八大新时代 · 中国式现代化',
     accentColor: '#0D9488',
   },
 ];
 
-// Discrete explicit years to display on timeline scale across 1840 - 2024
+// Discrete explicit years to display on timeline scale across 1516 - 2024
 export const YEAR_TICKS: YearTick[] = [
+  // Period 0 (1516 - 1840 马克思主义创立背景)
+  { year: 1516, x: 200, isKeyYear: true },
+  { year: 1755, x: 750, isKeyYear: true },
+  { year: 1810, x: 1300, isKeyYear: true },
+  { year: 1830, x: 1900, isKeyYear: true },
+  { year: 1831, x: 2350, isKeyYear: true },
+  { year: 1836, x: 2850, isKeyYear: true },
+  { year: 1838, x: 3350, isKeyYear: true },
+
   // Period 1 (1840 - 1919)
-  { year: 1840, x: 120, isKeyYear: true },
-  { year: 1841, x: 550, isKeyYear: true },
-  { year: 1842, x: 750 },
-  { year: 1844, x: 950 },
-  { year: 1851, x: 1350, isKeyYear: true },
-  { year: 1853, x: 1550 },
-  { year: 1856, x: 1680 },
-  { year: 1861, x: 1800, isKeyYear: true },
-  { year: 1865, x: 2000 },
-  { year: 1894, x: 2250, isKeyYear: true },
-  { year: 1895, x: 2450, isKeyYear: true },
-  { year: 1898, x: 2700, isKeyYear: true },
-  { year: 1901, x: 3100, isKeyYear: true },
-  { year: 1903, x: 3300 },
-  { year: 1905, x: 3550, isKeyYear: true },
-  { year: 1911, x: 3950, isKeyYear: true },
-  { year: 1912, x: 4100, isKeyYear: true },
-  { year: 1913, x: 4250 },
-  { year: 1915, x: 4380 },
-  { year: 1917, x: 4450 },
+  { year: 1840, x: 3840, isKeyYear: true },
+  { year: 1841, x: 4270, isKeyYear: true },
+  { year: 1842, x: 4470 },
+  { year: 1844, x: 4670 },
+  { year: 1848, x: 4900, isKeyYear: true },
+  { year: 1851, x: 5070, isKeyYear: true },
+  { year: 1853, x: 5270 },
+  { year: 1856, x: 5400 },
+  { year: 1861, x: 5520, isKeyYear: true },
+  { year: 1864, x: 5670 },
+  { year: 1867, x: 5720, isKeyYear: true },
+  { year: 1871, x: 5800, isKeyYear: true },
+  { year: 1875, x: 5860 },
+  { year: 1878, x: 5900 },
+  { year: 1894, x: 5970, isKeyYear: true },
+  { year: 1895, x: 6170, isKeyYear: true },
+  { year: 1898, x: 6420, isKeyYear: true },
+  { year: 1901, x: 6820, isKeyYear: true },
+  { year: 1903, x: 7020 },
+  { year: 1905, x: 7270, isKeyYear: true },
+  { year: 1911, x: 7670, isKeyYear: true },
+  { year: 1912, x: 7820, isKeyYear: true },
+  { year: 1913, x: 7970, isKeyYear: true },
+  { year: 1915, x: 8100, isKeyYear: true },
+  { year: 1917, x: 8170, isKeyYear: true },
 
   // Period 2 (1919 - 1927)
-  { year: 1919, x: 4750, isKeyYear: true },
-  { year: 1920, x: 5000, isKeyYear: true },
-  { year: 1921, x: 5450, isKeyYear: true },
-  { year: 1922, x: 5900, isKeyYear: true },
-  { year: 1923, x: 6350, isKeyYear: true },
-  { year: 1924, x: 6800, isKeyYear: true },
-  { year: 1925, x: 7250, isKeyYear: true },
-  { year: 1926, x: 7500 },
-  { year: 1927, x: 7650, isKeyYear: true },
+  { year: 1919, x: 8470, isKeyYear: true },
+  { year: 1920, x: 8720, isKeyYear: true },
+  { year: 1921, x: 9170, isKeyYear: true },
+  { year: 1922, x: 9620, isKeyYear: true },
+  { year: 1923, x: 10070, isKeyYear: true },
+  { year: 1924, x: 10520, isKeyYear: true },
+  { year: 1925, x: 10970, isKeyYear: true },
+  { year: 1926, x: 11220 },
+  { year: 1927, x: 11370, isKeyYear: true },
 
   // Period 3 (1927 - 1937)
-  { year: 1927, x: 7850, isKeyYear: true },
-  { year: 1928, x: 8500, isKeyYear: true },
-  { year: 1929, x: 9200, isKeyYear: true },
-  { year: 1930, x: 9550 },
-  { year: 1931, x: 9800, isKeyYear: true },
-  { year: 1934, x: 10200 },
-  { year: 1935, x: 10450, isKeyYear: true },
-  { year: 1936, x: 11350, isKeyYear: true },
-  { year: 1937, x: 11650 },
+  { year: 1927, x: 11570, isKeyYear: true },
+  { year: 1928, x: 12220, isKeyYear: true },
+  { year: 1929, x: 12920, isKeyYear: true },
+  { year: 1930, x: 13270 },
+  { year: 1931, x: 13520, isKeyYear: true },
+  { year: 1934, x: 13920 },
+  { year: 1935, x: 14170, isKeyYear: true },
+  { year: 1936, x: 15070, isKeyYear: true },
+  { year: 1937, x: 15370 },
 
   // Period 4 (1931/1937 - 1945)
-  { year: 1937, x: 12150, isKeyYear: true },
-  { year: 1938, x: 12900, isKeyYear: true },
-  { year: 1939, x: 13500, isKeyYear: true },
-  { year: 1940, x: 13750 },
-  { year: 1941, x: 14000, isKeyYear: true },
-  { year: 1942, x: 14120 },
-  { year: 1945, x: 14700, isKeyYear: true },
+  { year: 1937, x: 15870, isKeyYear: true },
+  { year: 1938, x: 16620, isKeyYear: true },
+  { year: 1939, x: 17220, isKeyYear: true },
+  { year: 1940, x: 17470 },
+  { year: 1941, x: 17720, isKeyYear: true },
+  { year: 1942, x: 17840 },
+  { year: 1945, x: 18420, isKeyYear: true },
 
   // Period 5 (1945 - 1949)
-  { year: 1945, x: 15450, isKeyYear: true },
-  { year: 1946, x: 15700, isKeyYear: true },
-  { year: 1947, x: 16300, isKeyYear: true },
-  { year: 1948, x: 16800, isKeyYear: true },
-  { year: 1949, x: 17100, isKeyYear: true },
+  { year: 1945, x: 19170, isKeyYear: true },
+  { year: 1946, x: 19420, isKeyYear: true },
+  { year: 1947, x: 20020, isKeyYear: true },
+  { year: 1948, x: 20520, isKeyYear: true },
+  { year: 1949, x: 20820, isKeyYear: true },
 
   // Period 6 (1949 - 1978)
-  { year: 1949, x: 18650, isKeyYear: true },
-  { year: 1950, x: 19100, isKeyYear: true },
-  { year: 1953, x: 19550, isKeyYear: true },
-  { year: 1954, x: 19800, isKeyYear: true },
-  { year: 1956, x: 20000, isKeyYear: true },
-  { year: 1957, x: 20900, isKeyYear: true },
-  { year: 1961, x: 21150, isKeyYear: true },
-  { year: 1962, x: 21350, isKeyYear: true },
-  { year: 1976, x: 21450 },
+  { year: 1949, x: 22370, isKeyYear: true },
+  { year: 1950, x: 22820, isKeyYear: true },
+  { year: 1953, x: 23270, isKeyYear: true },
+  { year: 1954, x: 23520, isKeyYear: true },
+  { year: 1956, x: 23720, isKeyYear: true },
+  { year: 1957, x: 24620, isKeyYear: true },
+  { year: 1961, x: 24870, isKeyYear: true },
+  { year: 1962, x: 25070, isKeyYear: true },
+  { year: 1976, x: 25170 },
 
   // Period 7 (1978 - 2024)
-  { year: 1978, x: 21650, isKeyYear: true },
-  { year: 1979, x: 22250, isKeyYear: true },
-  { year: 1981, x: 22500, isKeyYear: true },
-  { year: 1982, x: 22950, isKeyYear: true },
-  { year: 1984, x: 23350, isKeyYear: true },
-  { year: 1987, x: 23800, isKeyYear: true },
-  { year: 1992, x: 24250, isKeyYear: true },
-  { year: 1997, x: 24950, isKeyYear: true },
-  { year: 2002, x: 25400, isKeyYear: true },
-  { year: 2007, x: 25650 },
-  { year: 2012, x: 25850, isKeyYear: true },
-  { year: 2013, x: 26250, isKeyYear: true },
-  { year: 2017, x: 26650, isKeyYear: true },
-  { year: 2021, x: 27050, isKeyYear: true },
-  { year: 2022, x: 27450, isKeyYear: true },
-  { year: 2024, x: 27750, isKeyYear: true },
+  { year: 1978, x: 25370, isKeyYear: true },
+  { year: 1979, x: 25970, isKeyYear: true },
+  { year: 1981, x: 26220, isKeyYear: true },
+  { year: 1982, x: 26670, isKeyYear: true },
+  { year: 1984, x: 27070, isKeyYear: true },
+  { year: 1987, x: 27520, isKeyYear: true },
+  { year: 1992, x: 27970, isKeyYear: true },
+  { year: 1997, x: 28670, isKeyYear: true },
+  { year: 2002, x: 29120, isKeyYear: true },
+  { year: 2007, x: 29370 },
+  { year: 2012, x: 29570, isKeyYear: true },
+  { year: 2013, x: 29970, isKeyYear: true },
+  { year: 2017, x: 30370, isKeyYear: true },
+  { year: 2021, x: 30770, isKeyYear: true },
+  { year: 2022, x: 31170, isKeyYear: true },
+  { year: 2024, x: 31470, isKeyYear: true },
 ];
 
-export const TOTAL_CANVAS_WIDTH = 28400;
+export const TOTAL_CANVAS_WIDTH = 32200;
+
+/**
+ * Parses event dateStr to extract precise starting date number and a clean label
+ */
+export function parseEventDate(dateStr: string, fallbackYear?: number): { dateVal: number; label: string } {
+  if (dateStr.includes('18世纪')) return { dateVal: 1755, label: '18世纪' };
+  if (dateStr.includes('19世纪初')) return { dateVal: 1810, label: '19世纪初' };
+  if (dateStr.includes('19世纪30-40年代')) return { dateVal: 1830, label: '1830s' };
+  if (dateStr.includes('19世纪30年代末')) return { dateVal: 1838, label: '1838' };
+
+  let startPart = dateStr.split(/[—–~]/)[0].trim();
+  if (startPart.includes(' / ')) {
+    startPart = startPart.split(' / ')[0].trim();
+  }
+
+  const m = startPart.match(/(\d{4})(?:[\.年](\d{1,2}))?(?:[\.月](\d{1,2}))?/);
+  if (m) {
+    const year = parseInt(m[1], 10);
+    const month = m[2] ? parseInt(m[2], 10) : 1;
+    const day = m[3] ? parseInt(m[3], 10) : 1;
+    const dateVal = year + (month - 1) / 12 + (day - 1) / 365;
+    let label = String(year);
+    if (m[2]) label += '.' + m[2];
+    if (m[3]) label += '.' + m[3];
+    return { dateVal, label };
+  }
+
+  const y = fallbackYear || 1921;
+  return { dateVal: y, label: String(Math.floor(y)) };
+}
+
+/**
+ * Calculates exact timeline X coordinate from dateVal for the given period
+ */
+export function dateToX(dateVal: number, periodId: number): number {
+  const boundary = PERIOD_BOUNDARIES.find((p) => p.id === periodId);
+  if (!boundary) return 1000;
+  const ticks = YEAR_TICKS.filter((t) => t.x >= boundary.startX - 50 && t.x <= boundary.endX + 50);
+  if (ticks.length === 0) return boundary.startX;
+  if (ticks.length === 1) return ticks[0].x;
+
+  if (dateVal <= ticks[0].year) return ticks[0].x;
+  if (dateVal >= ticks[ticks.length - 1].year) return ticks[ticks.length - 1].x;
+
+  for (let i = 0; i < ticks.length - 1; i++) {
+    const t0 = ticks[i];
+    const t1 = ticks[i + 1];
+    if (t0.year === t1.year) continue;
+    if (dateVal >= t0.year && dateVal <= t1.year) {
+      const frac = (dateVal - t0.year) / (t1.year - t0.year);
+      return Math.round(t0.x + frac * (t1.x - t0.x));
+    }
+  }
+  return ticks[ticks.length - 1].x;
+}
+
+/**
+ * Systematic canvas layout computation:
+ * 1. Strictly aligns card left edge to exact event date tick (exactX).
+ * 2. If overlap between adjacent cards exceeds 30% (distance < 266px), offsets the minimum
+ *    number of cards by 285px to maintain readability.
+ * 3. Any displaced card produces an orthogonal horizontal-vertical leader line back to exactX.
+ */
+export function computeCanvasLayout(events: HistoryEvent[]): {
+  coords: Record<string, EventLayoutCoord>;
+  leaderLines: LeaderLineInfo[];
+} {
+  const rows: Record<string, Array<{
+    id: string;
+    title: string;
+    dateStr: string;
+    dateLabel: string;
+    periodId: PeriodId;
+    track: TrackId;
+    y: number;
+    exactX: number;
+  }>> = {
+    meeting: [],
+    armed: [],
+    works_upper: [],
+    works_lower: [],
+  };
+
+  events.forEach((ev) => {
+    const isMarxism = Boolean(ev.isScientificSocialism || ev.periodId === 0);
+    const parsed = parseEventDate(ev.dateStr, ev.year);
+    const exactX = dateToX(parsed.dateVal, ev.periodId);
+
+    let rowKey: string = ev.track;
+    let y = TRACK_Y_POSITIONS[ev.track].y;
+    if (ev.track === 'works') {
+      rowKey = isMarxism ? 'works_lower' : 'works_upper';
+      y = isMarxism ? WORKS_MARXISM_Y : TRACK_Y_POSITIONS.works.y;
+    }
+
+    rows[rowKey].push({
+      id: ev.id,
+      title: ev.title,
+      dateStr: ev.dateStr,
+      dateLabel: parsed.label,
+      periodId: ev.periodId,
+      track: ev.track,
+      y,
+      exactX,
+    });
+  });
+
+  const coords: Record<string, EventLayoutCoord> = {};
+  const leaderLines: LeaderLineInfo[] = [];
+
+  for (const [, list] of Object.entries(rows)) {
+    list.sort((a, b) => a.exactX - b.exactX);
+    let lastPlacedX = -99999;
+    let clusterTier = 0;
+
+    list.forEach((item) => {
+      let placedX = item.exactX;
+      let isShifted = false;
+
+      // Overlap > 30% check: (lastPlacedX + 380) - placedX > 114  =>  placedX < lastPlacedX + 266
+      if (placedX < lastPlacedX + 266) {
+        placedX = lastPlacedX + 285;
+        isShifted = true;
+        clusterTier++;
+      } else {
+        clusterTier = 0;
+      }
+
+      lastPlacedX = placedX;
+
+      coords[item.id] = {
+        x: placedX,
+        y: item.y,
+        exactX: item.exactX,
+        isShifted,
+        dateLabel: item.dateLabel,
+        shiftAmount: placedX - item.exactX,
+      };
+
+      if (isShifted) {
+        leaderLines.push({
+          id: item.id,
+          title: item.title,
+          track: item.track,
+          y: item.y,
+          exactX: item.exactX,
+          placedX,
+          shiftAmount: placedX - item.exactX,
+          dateLabel: item.dateLabel,
+          tier: clusterTier % 3,
+        });
+      }
+    });
+  }
+
+  return { coords, leaderLines };
+}
+
+// Precompute coordinates and leader lines for default events
+const initialLayout = computeCanvasLayout(HISTORY_EVENTS);
+export const EVENT_LAYOUT_COORDS: Record<string, EventLayoutCoord> = initialLayout.coords;
+export const EVENT_LEADER_LINES: LeaderLineInfo[] = initialLayout.leaderLines;

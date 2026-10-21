@@ -6,11 +6,9 @@ interface HighlightTextProps {
   trackId: string;
   searchQuery?: string;
   isQuizMode?: boolean;
+  isScientificSocialism?: boolean;
 }
 
-/**
- * Helper component to highlight search keyword matches with bright amber badge
- */
 export const HighlightSearch: React.FC<{ text: string; query?: string }> = ({ text, query }) => {
   if (!query || !query.trim() || !text) {
     return <>{text}</>;
@@ -50,6 +48,7 @@ export const HighlightText: React.FC<HighlightTextProps> = ({
   trackId,
   searchQuery,
   isQuizMode = false,
+  isScientificSocialism = false,
 }) => {
   if (!text) return null;
 
@@ -72,6 +71,9 @@ export const HighlightText: React.FC<HighlightTextProps> = ({
   const parts = text.split(regex);
 
   const getHighlightStyle = () => {
+    if (isScientificSocialism) {
+      return 'font-semibold text-slate-800 dark:text-zinc-200 bg-slate-200/90 dark:bg-zinc-700/60 px-1 py-0.5 rounded shadow-2xs border-b border-slate-300 dark:border-zinc-600';
+    }
     switch (trackId) {
       case 'meeting':
         return 'font-bold text-red-950 dark:text-red-100 bg-red-100/90 dark:bg-red-900/40 px-1 py-0.5 rounded shadow-xs border-b border-red-300 dark:border-red-700/60';

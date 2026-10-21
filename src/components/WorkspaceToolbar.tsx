@@ -11,9 +11,13 @@ import {
   X,
   ChevronUp,
   ChevronDown,
+  Columns3,
+  Rows3,
 } from 'lucide-react';
 
 interface WorkspaceToolbarProps {
+  layoutMode: 'horizontal' | 'vertical';
+  onLayoutModeChange: (mode: 'horizontal' | 'vertical') => void;
   searchQuery: string;
   onSearchChange: (query: string) => void;
   matchingCount: number;
@@ -34,6 +38,8 @@ interface WorkspaceToolbarProps {
 }
 
 export const WorkspaceToolbar: React.FC<WorkspaceToolbarProps> = ({
+  layoutMode,
+  onLayoutModeChange,
   searchQuery,
   onSearchChange,
   matchingCount,
@@ -156,6 +162,36 @@ export const WorkspaceToolbar: React.FC<WorkspaceToolbarProps> = ({
 
       {/* Modes & View Controls */}
       <div className="flex items-center gap-2">
+        {/* Layout Mode Segmented Control: 横向全景 vs 纵向浏览 */}
+        <div className="flex items-center bg-white dark:bg-slate-800 rounded-lg border border-slate-200 dark:border-slate-700 p-0.5 shadow-2xs">
+          <button
+            onClick={() => onLayoutModeChange('horizontal')}
+            className={`flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium transition-colors cursor-pointer ${
+              layoutMode === 'horizontal'
+                ? 'bg-slate-900 text-white dark:bg-white dark:text-slate-900 shadow-2xs font-semibold'
+                : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'
+            }`}
+            title="横向排版：从左往右全景时间轴画布"
+          >
+            <Rows3 className="w-3.5 h-3.5 rotate-90" />
+            <span>横向</span>
+          </button>
+          <button
+            onClick={() => onLayoutModeChange('vertical')}
+            className={`flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium transition-colors cursor-pointer ${
+              layoutMode === 'vertical'
+                ? 'bg-amber-500 text-white shadow-2xs font-semibold'
+                : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'
+            }`}
+            title="纵向排版：左侧时间轴向下递进，右侧三列显示"
+          >
+            <Columns3 className="w-3.5 h-3.5" />
+            <span>纵向</span>
+          </button>
+        </div>
+
+        <div className="h-4 w-[1px] bg-slate-200 dark:bg-slate-700 mx-0.5" />
+
         {/* Mind map connections toggle */}
         <button
           onClick={onToggleConnections}

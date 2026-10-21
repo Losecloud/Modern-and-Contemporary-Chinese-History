@@ -1,8 +1,9 @@
 import React, { useRef, useState, useEffect, useCallback, useMemo } from 'react';
-import { HistoryEvent, TrackId } from '../types/history';
+import { HistoryEvent, TrackId, getCardZIndex } from '../types/history';
 import { HISTORY_EVENTS, TRACKS } from '../data/historyData';
 import {
   EVENT_LAYOUT_COORDS,
+  EVENT_LEADER_LINES,
   TOTAL_CANVAS_WIDTH,
   CANVAS_HEIGHT,
   CARD_WIDTH,
@@ -12,6 +13,7 @@ import { TimelineScale } from './TimelineScale';
 import { TrackHeader } from './TrackHeader';
 import { EventCard } from './EventCard';
 import { SvgConnections } from './SvgConnections';
+import { LeaderLinesLayer } from './LeaderLinesLayer';
 import { MapPin, Navigation } from 'lucide-react';
 
 interface HistoryCanvasProps {
@@ -63,7 +65,17 @@ export const HistoryCanvas: React.FC<HistoryCanvasProps> = ({
   const isDraggingRef = useRef(false);
   const lastClientXRef = useRef(0);
   const lastClientYRef = useRef(0);
+  // 拖拽真正发生前不触发 pointer-events:none，保证单击卡片事件可达（点击激活连线）
+  const dragMovedRef = useRef(false);
+  const pressStartRef = useRef({ x: 0, y: 0 });
   const activePeriodRef = useRef<number>(1);
+
+  // —— 缩放帧同步引用：滚轮缩放期间直写 DOM、状态经 rAF 合并提交，杜绝逐事件全量重渲染 ——
+  const wrapperRef = useRef<HTMLDivElement>(null); // 外层尺寸容器（决定滚动范围）
+  const innerRef = useRef<HTMLDivElement>(null); // 缩放变换容器（transform: scale）
+  const zoomLevelRef = useRef(zoomLevel); // 立即跟随滚轮更新，保证同帧连续事件不丢
+  const pendingZoomRef = useRef<number | null>(null); // 待提交的最新缩放状态
+  const frameRafRef = useRef<number | null>(null); // rAF 去重句柄
 
   // Count events per track (3 tracks)
   const eventCounts = useMemo(() => {
@@ -78,7 +90,47 @@ export const HistoryCanvas: React.FC<HistoryCanvasProps> = ({
     return counts;
   }, []);
 
-  // Update viewport metrics and active period
+  // —— 帧合并刷新：缩放状态提交与滚动状态刷新合并到每帧至多一次 ——
+  const flushFrame = useCallback(() => {
+    // 提交最新缩放状态（每帧至多一次，且始终取最新值，快速滚轮不丢步）
+    if (pendingZoomRef.current !== null) {
+      const z = pendingZoomRef.current;
+      pendingZoomRef.current = null;
+      onZoomChange?.(z);
+    }
+
+    const el = containerRef.current;
+    if (!el) return;
+    const { scrollLeft, scrollTop, clientWidth, clientHeight } = el;
+
+    // Check active period in real-time, but ONLY notify parent when boundary actually changes!
+    const virtualX = scrollLeft / zoomLevelRef.current + 200;
+    const boundary = PERIOD_BOUNDARIES.find((p) => virtualX >= p.startX && virtualX <= p.endX);
+    if (boundary && boundary.id !== activePeriodRef.current) {
+      activePeriodRef.current = boundary.id;
+      onActivePeriodChange?.(boundary.id);
+    }
+
+    setScrollState({ scrollLeft, scrollTop, clientWidth, clientHeight });
+  }, [onZoomChange, onActivePeriodChange]);
+
+  const scheduleFlush = useCallback(() => {
+    if (frameRafRef.current !== null) return;
+    frameRafRef.current = requestAnimationFrame(() => {
+      frameRafRef.current = null;
+      flushFrame();
+    });
+  }, [flushFrame]);
+
+  const flushNow = useCallback(() => {
+    if (frameRafRef.current !== null) {
+      cancelAnimationFrame(frameRafRef.current);
+      frameRafRef.current = null;
+    }
+    flushFrame();
+  }, [flushFrame]);
+
+  // Update viewport metrics and active period（滚动状态刷新按帧合并，避免滚轮期间逐事件重渲染）
   const handleScroll = useCallback(() => {
     if (!containerRef.current) return;
 
@@ -87,23 +139,20 @@ export const HistoryCanvas: React.FC<HistoryCanvasProps> = ({
       return;
     }
 
-    const { scrollLeft, scrollTop, clientWidth, clientHeight } = containerRef.current;
+    scheduleFlush();
+  }, [scheduleFlush]);
 
-    // Check active period in real-time, but ONLY notify parent when boundary actually changes!
-    const virtualX = scrollLeft / zoomLevel + 200;
-    const boundary = PERIOD_BOUNDARIES.find((p) => virtualX >= p.startX && virtualX <= p.endX);
-    if (boundary && boundary.id !== activePeriodRef.current) {
-      activePeriodRef.current = boundary.id;
-      onActivePeriodChange?.(boundary.id);
-    }
-
-    setScrollState({ scrollLeft, scrollTop, clientWidth, clientHeight });
-  }, [zoomLevel, onActivePeriodChange]);
+  // 卸载时取消未执行的帧刷新
+  useEffect(
+    () => () => {
+      if (frameRafRef.current !== null) cancelAnimationFrame(frameRafRef.current);
+    },
+    []
+  );
 
   // Smooth scroll to X position
   const scrollToX = useCallback((x: number) => {
     if (!containerRef.current) return;
-    containerRef.current.style.scrollBehavior = 'smooth';
     const target = Math.max(0, x - 120);
     containerRef.current.scrollTo({
       left: target,
@@ -111,16 +160,15 @@ export const HistoryCanvas: React.FC<HistoryCanvasProps> = ({
     });
   }, []);
 
-  // Smooth scroll vertically to target Y
+  // Smooth scroll vertically to target Y（读 ref 保持回调稳定，缩放提交时不再级联重渲染连线层）
   const scrollToY = useCallback((y: number) => {
     if (!containerRef.current) return;
-    containerRef.current.style.scrollBehavior = 'smooth';
-    const target = Math.max(0, y * zoomLevel - 130);
+    const target = Math.max(0, y * zoomLevelRef.current - 130);
     containerRef.current.scrollTo({
       top: target,
       behavior: 'smooth',
     });
-  }, [zoomLevel]);
+  }, []);
 
   // Jump to historical period
   const jumpToPeriod = useCallback(
@@ -133,20 +181,19 @@ export const HistoryCanvas: React.FC<HistoryCanvasProps> = ({
     [scrollToX]
   );
 
-  // Jump to specific event card with smooth viewport centering
+  // Jump to specific event card with smooth viewport centering（读 ref 保持回调稳定）
   const navigateToCard = useCallback(
     (eventId: string) => {
       setSelectedEventId(eventId);
       const coord = EVENT_LAYOUT_COORDS[eventId];
       if (coord && containerRef.current) {
-        containerRef.current.style.scrollBehavior = 'smooth';
         const targetScrollLeft = Math.max(
           0,
-          (coord.x + CARD_WIDTH / 2) * zoomLevel - containerRef.current.clientWidth / 2
+          (coord.x + CARD_WIDTH / 2) * zoomLevelRef.current - containerRef.current.clientWidth / 2
         );
         const targetScrollTop = Math.max(
           0,
-          coord.y * zoomLevel - 150
+          coord.y * zoomLevelRef.current - 150
         );
         containerRef.current.scrollTo({
           left: targetScrollLeft,
@@ -155,7 +202,7 @@ export const HistoryCanvas: React.FC<HistoryCanvasProps> = ({
         });
       }
     },
-    [zoomLevel]
+    []
   );
 
   useEffect(() => {
@@ -178,6 +225,16 @@ export const HistoryCanvas: React.FC<HistoryCanvasProps> = ({
       if (!isDraggingRef.current || !containerRef.current) return;
       e.preventDefault();
 
+      // 仅当指针真正移动超过阈值时，才进入拖拽态（禁用卡片 pointer-events 以保证平移流畅）
+      if (
+        !dragMovedRef.current &&
+        (Math.abs(e.clientX - pressStartRef.current.x) > 3 ||
+          Math.abs(e.clientY - pressStartRef.current.y) > 3)
+      ) {
+        dragMovedRef.current = true;
+        setIsDragging(true);
+      }
+
       // Synchronous delta calculation: 0ms latency, runs at display refresh rate
       const dx = e.clientX - lastClientXRef.current;
       const dy = e.clientY - lastClientYRef.current;
@@ -191,20 +248,11 @@ export const HistoryCanvas: React.FC<HistoryCanvasProps> = ({
     const onGlobalPointerUp = () => {
       if (isDraggingRef.current) {
         isDraggingRef.current = false;
+        dragMovedRef.current = false;
         setIsDragging(false);
 
         // Instantly flush final scroll position for ▲ / ▼ indicators
-        if (containerRef.current) {
-          const { scrollLeft, scrollTop, clientWidth, clientHeight } = containerRef.current;
-          setScrollState({ scrollLeft, scrollTop, clientWidth, clientHeight });
-
-          const virtualX = scrollLeft / zoomLevel + 200;
-          const boundary = PERIOD_BOUNDARIES.find((p) => virtualX >= p.startX && virtualX <= p.endX);
-          if (boundary && boundary.id !== activePeriodRef.current) {
-            activePeriodRef.current = boundary.id;
-            onActivePeriodChange?.(boundary.id);
-          }
-        }
+        flushNow();
       }
     };
 
@@ -217,9 +265,9 @@ export const HistoryCanvas: React.FC<HistoryCanvasProps> = ({
       window.removeEventListener('pointerup', onGlobalPointerUp);
       window.removeEventListener('pointercancel', onGlobalPointerUp);
     };
-  }, [zoomLevel, onActivePeriodChange]);
+  }, [flushNow]);
 
-  const zoomLevelRef = useRef(zoomLevel);
+  // 外部（工具栏按钮等）改动缩放状态时同步 ref
   useEffect(() => {
     zoomLevelRef.current = zoomLevel;
   }, [zoomLevel]);
@@ -232,6 +280,9 @@ export const HistoryCanvas: React.FC<HistoryCanvasProps> = ({
     if (!container) return;
 
     const handleWheel = (e: WheelEvent) => {
+      // Ensure native scrollBehavior doesn't lag or animate focal zoom
+      container.style.scrollBehavior = 'auto';
+
       // 1. Alt + wheel: Vertical scroll (上下滚动)
       if (e.altKey) {
         e.preventDefault();
@@ -246,46 +297,59 @@ export const HistoryCanvas: React.FC<HistoryCanvasProps> = ({
         return;
       }
 
-      // 2. Normal wheel: Proportional canvas zoom (整个画布的比例缩放)
-      // 滚轮下滚为缩小 (deltaY > 0 -> zoom out)，上滚为放大 (deltaY < 0 -> zoom in)
+      // 2. Normal wheel or Ctrl + wheel (touchpad pinch): Proportional canvas zoom centered on mouse cursor
+      // 滚轮上滚为放大 (deltaY < 0 -> zoom in)，下滚为缩小 (deltaY > 0 -> zoom out)
       e.preventDefault();
       const currentZoom = zoomLevelRef.current;
-      const isZoomIn = e.deltaY < 0; // 上滚为放大
-      const zoomStep = 0.08;
+
+      // 与滚轮增量成比例的平滑缩放（100px/格 ≈ 8%，与原手感一致；触控板小增量同样平滑）
+      const dy = e.deltaMode === 1 ? e.deltaY * 16 : e.deltaMode === 2 ? e.deltaY * 400 : e.deltaY;
+      const rawFactor = Math.pow(1.0008, -dy);
+      const factor = Math.min(1.25, Math.max(0.8, rawFactor));
       const targetZoom = Math.min(
-        1.8,
-        Math.max(0.45, Number((currentZoom + (isZoomIn ? zoomStep : -zoomStep)).toFixed(2)))
+        2.0,
+        Math.max(0.4, Number((currentZoom * factor).toFixed(3)))
       );
 
       if (targetZoom === currentZoom) return;
 
-      // Mouse-centered focal zoom calculation
+      // Mouse position relative to viewport container
       const rect = container.getBoundingClientRect();
       const mouseX = e.clientX - rect.left;
       const mouseY = e.clientY - rect.top;
 
+      // World coordinate of canvas point under cursor before zoom
       const canvasX = (container.scrollLeft + mouseX) / currentZoom;
       const canvasY = (container.scrollTop + mouseY) / currentZoom;
 
+      // Desired scroll position so that (canvasX, canvasY) remains precisely under (mouseX, mouseY)
       const nextScrollLeft = Math.max(0, canvasX * targetZoom - mouseX);
       const nextScrollTop = Math.max(0, canvasY * targetZoom - mouseY);
 
-      onZoomChange?.(targetZoom);
+      // 同步直写 DOM：先更新外层滚动尺寸与缩放变换，再写滚动位置——
+      // 滚动范围先于滚动值更新，缩放中心不会被旧尺寸截断漂移；无须等待 React 提交帧
+      if (wrapperRef.current) {
+        wrapperRef.current.style.width = `${Math.round(TOTAL_CANVAS_WIDTH * targetZoom)}px`;
+        wrapperRef.current.style.height = `${Math.round(CANVAS_HEIGHT * targetZoom)}px`;
+      }
+      if (innerRef.current) {
+        innerRef.current.style.transform = `scale(${targetZoom}) translate3d(0, 0, 0)`;
+      }
+      container.scrollLeft = nextScrollLeft;
+      container.scrollTop = nextScrollTop;
 
-      // Keep focus point locked under cursor
-      requestAnimationFrame(() => {
-        if (container) {
-          container.scrollLeft = nextScrollLeft;
-          container.scrollTop = nextScrollTop;
-        }
-      });
+      // 立即更新 ref：同帧内连续滚轮事件基于最新缩放继续计算，不丢任何一步
+      zoomLevelRef.current = targetZoom;
+      pendingZoomRef.current = targetZoom;
+      // React 状态提交按帧合并（每帧至多一次全量重渲染）
+      scheduleFlush();
     };
 
     container.addEventListener('wheel', handleWheel, { passive: false });
     return () => {
       container.removeEventListener('wheel', handleWheel);
     };
-  }, [onZoomChange]);
+  }, [scheduleFlush]);
 
   // Mouse / Pointer Down Handler
   const handlePointerDown = (e: React.PointerEvent) => {
@@ -303,9 +367,10 @@ export const HistoryCanvas: React.FC<HistoryCanvasProps> = ({
 
     if (!containerRef.current) return;
     isDraggingRef.current = true;
+    dragMovedRef.current = false;
+    pressStartRef.current = { x: e.clientX, y: e.clientY };
     lastClientXRef.current = e.clientX;
     lastClientYRef.current = e.clientY;
-    setIsDragging(true);
 
     containerRef.current.style.scrollBehavior = 'auto'; // Instant 1:1 response
   };
@@ -448,7 +513,8 @@ export const HistoryCanvas: React.FC<HistoryCanvasProps> = ({
 
   const handleCardSelect = useCallback(
     (ev: HistoryEvent) => {
-      setSelectedEventId(ev.id);
+      // 点击卡片激活其导图连线并持续显示；再次点击同一卡片则取消激活
+      setSelectedEventId((prev) => (prev === ev.id ? null : ev.id));
       onSelectEvent(ev);
     },
     [onSelectEvent]
@@ -460,6 +526,18 @@ export const HistoryCanvas: React.FC<HistoryCanvasProps> = ({
     },
     [onOpenDetailModal]
   );
+
+  // 按下 ESC 取消当前激活的卡片连线
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        setSelectedEventId(null);
+        setActiveEventId(null);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, []);
 
   const scrollProgress =
     containerRef.current && containerRef.current.scrollWidth > containerRef.current.clientWidth
@@ -548,86 +626,112 @@ export const HistoryCanvas: React.FC<HistoryCanvasProps> = ({
           isDragging ? 'cursor-grabbing' : 'cursor-grab'
         }`}
       >
-        {/* Transform Container for Zooming with 3D Composite Layer */}
+        {/* Sizing wrapper ensuring container scrollWidth/scrollHeight tracks zoomLevel exactly */}
         <div
+          ref={wrapperRef}
           style={{
-            width: `${TOTAL_CANVAS_WIDTH}px`,
-            height: `${CANVAS_HEIGHT}px`,
-            transform: `scale(${zoomLevel}) translate3d(0, 0, 0)`,
-            transformOrigin: '0 0',
-            backfaceVisibility: 'hidden',
+            width: `${Math.round(TOTAL_CANVAS_WIDTH * zoomLevel)}px`,
+            height: `${Math.round(CANVAS_HEIGHT * zoomLevel)}px`,
+            position: 'relative',
           }}
-          className="relative origin-top-left"
         >
-          {/* Top Timeline Scale Ruler with Discrete Years */}
-          <TimelineScale
-            scrollLeft={scrollState.scrollLeft / zoomLevel}
-            onJumpToPeriod={(startX) => scrollToX(startX)}
-            onJumpToX={(x) => scrollToX(x)}
-          />
+          {/* Transform Container for Zooming with 3D Composite Layer */}
+          <div
+            ref={innerRef}
+            style={{
+              width: `${TOTAL_CANVAS_WIDTH}px`,
+              height: `${CANVAS_HEIGHT}px`,
+              transform: `scale(${zoomLevel}) translate3d(0, 0, 0)`,
+              transformOrigin: '0 0',
+              backfaceVisibility: 'hidden',
+              position: 'absolute',
+              top: 0,
+              left: 0,
+            }}
+            className="origin-top-left"
+          >
+            {/* Top Timeline Scale Ruler with Discrete Years */}
+            <TimelineScale
+              scrollLeft={scrollState.scrollLeft / zoomLevel}
+              onJumpToPeriod={(startX) => scrollToX(startX)}
+              onJumpToX={(x) => scrollToX(x)}
+            />
 
-          {/* Left Vertical Category Header (极简单列竖排标题，精确对应各排) */}
-          <TrackHeader
-            activeTracks={activeTracks}
-            eventCounts={eventCounts}
-            scrollLeft={scrollState.scrollLeft / zoomLevel}
-          />
+            {/* Left Vertical Category Header (极简单列竖排标题，精确对应各排) */}
+            <TrackHeader
+              activeTracks={activeTracks}
+              eventCounts={eventCounts}
+              scrollLeft={scrollState.scrollLeft / zoomLevel}
+            />
 
-          {/* Mind Map Connections with Strictly Horizontal Arrow Lead-in */}
-          <SvgConnections
-            events={HISTORY_EVENTS}
-            activeEventId={activeEventId}
-            selectedEventId={selectedEventId}
-            showConnections={showConnections}
-            onSelectEvent={navigateToCard}
-          />
+            {/* Mind Map Connections with Strictly Horizontal Arrow Lead-in */}
+            <SvgConnections
+              events={HISTORY_EVENTS}
+              activeEventId={activeEventId}
+              selectedEventId={selectedEventId}
+              showConnections={showConnections}
+              onSelectEvent={navigateToCard}
+            />
 
-          {/* Event Cards (pointer-events set to none during drag to preserve 60fps) */}
-          <div style={{ pointerEvents: isDragging ? 'none' : 'auto' }}>
-            {HISTORY_EVENTS.map((event) => {
-              const coord = EVENT_LAYOUT_COORDS[event.id];
-              if (!coord) return null;
+            {/* Orthogonal Horizontal-Vertical Leader Lines for displaced cards pointing to exact ticks */}
+            <LeaderLinesLayer
+              leaderLines={EVENT_LEADER_LINES}
+              activeTracks={activeTracks}
+              activeEventId={activeEventId}
+              selectedEventId={selectedEventId}
+              searchQuery={searchQuery}
+              onSelectEvent={navigateToCard}
+            />
 
-              const isTrackVisible = activeTracks.has(event.track);
-              if (!isTrackVisible) return null;
+            {/* Event Cards (pointer-events set to none during drag to preserve 60fps) */}
+            <div style={{ pointerEvents: isDragging ? 'none' : 'auto' }}>
+              {HISTORY_EVENTS.map((event, globalIndex) => {
+                const coord = EVENT_LAYOUT_COORDS[event.id];
+                if (!coord) return null;
 
-              const matchesSearch = isEventMatchingSearch(event);
-              const isCardActive = activeEventId === event.id;
-              const isCardSelected = selectedEventId === event.id;
-              const isDimmed = searchQuery.trim() !== '' && !matchesSearch;
+                const isTrackVisible = activeTracks.has(event.track);
+                if (!isTrackVisible) return null;
 
-              const trackDef = TRACKS.find((t) => t.id === event.track)!;
+                const matchesSearch = isEventMatchingSearch(event);
+                const isCardActive = activeEventId === event.id;
+                const isCardSelected = selectedEventId === event.id;
+                const isDimmed = searchQuery.trim() !== '' && !matchesSearch;
 
-              return (
-                <div
-                  key={event.id}
-                  style={{
-                    position: 'absolute',
-                    left: `${coord.x}px`,
-                    top: `${coord.y}px`,
-                    zIndex: isCardActive || isCardSelected ? 25 : 15,
-                  }}
-                >
-                  <EventCard
-                    event={event}
-                    track={trackDef}
-                    isActive={isCardActive}
-                    isSelected={isCardSelected}
-                    isDimmed={isDimmed}
-                    isQuizMode={isQuizMode}
-                    searchQuery={searchQuery}
-                    isCurrentSearchFocus={event.id === currentMatchedEventId}
-                    searchMatchRank={
-                      event.id === currentMatchedEventId ? searchMatchRank : undefined
-                    }
-                    onHover={handleCardHover}
-                    onSelect={handleCardSelect}
-                    onOpenDetail={handleCardDetail}
-                    onNavigateTo={navigateToCard}
-                  />
-                </div>
-              );
-            })}
+                const trackDef = TRACKS.find((t) => t.id === event.track)!;
+                const isHighlighted = isCardActive || isCardSelected || event.id === currentMatchedEventId;
+                const zIndex = getCardZIndex(event, globalIndex, isCardActive, isCardSelected, isHighlighted);
+
+                return (
+                  <div
+                    key={event.id}
+                    style={{
+                      position: 'absolute',
+                      left: `${coord.x}px`,
+                      top: `${coord.y}px`,
+                      zIndex,
+                    }}
+                  >
+                    <EventCard
+                      event={event}
+                      track={trackDef}
+                      isActive={isCardActive}
+                      isSelected={isCardSelected}
+                      isDimmed={isDimmed}
+                      isQuizMode={isQuizMode}
+                      searchQuery={searchQuery}
+                      isCurrentSearchFocus={event.id === currentMatchedEventId}
+                      searchMatchRank={
+                        event.id === currentMatchedEventId ? searchMatchRank : undefined
+                      }
+                      onHover={handleCardHover}
+                      onSelect={handleCardSelect}
+                      onOpenDetail={handleCardDetail}
+                      onNavigateTo={navigateToCard}
+                    />
+                  </div>
+                );
+              })}
+            </div>
           </div>
         </div>
       </div>

@@ -9,10 +9,12 @@ import { HISTORY_EVENTS } from './data/historyData';
 import { Header } from './components/Header';
 import { WorkspaceToolbar } from './components/WorkspaceToolbar';
 import { HistoryCanvas } from './components/HistoryCanvas';
+import { VerticalHistoryView } from './components/VerticalHistoryView';
 import { EventDetailModal } from './components/EventDetailModal';
 import { StudyGuideModal } from './components/StudyGuideModal';
 
 export default function App() {
+  const [layoutMode, setLayoutMode] = useState<'horizontal' | 'vertical'>('horizontal');
   const [searchQuery, setSearchQuery] = useState('');
   const [activeTracks, setActiveTracks] = useState<Set<TrackId>>(
     new Set<TrackId>(['meeting', 'armed', 'works'])
@@ -157,8 +159,10 @@ export default function App() {
         onOpenStudyGuide={() => setIsStudyGuideOpen(true)}
       />
 
-      {/* Workspace Toolbar with Stepper Search */}
+      {/* Workspace Toolbar with Stepper Search & Layout Mode Switcher */}
       <WorkspaceToolbar
+        layoutMode={layoutMode}
+        onLayoutModeChange={setLayoutMode}
         searchQuery={searchQuery}
         onSearchChange={setSearchQuery}
         matchingCount={matchingEvents.length}
@@ -178,33 +182,61 @@ export default function App() {
         onToggleQuizMode={() => setIsQuizMode((prev) => !prev)}
       />
 
-      {/* Main Horizontal Timeline Canvas */}
-      <HistoryCanvas
-        searchQuery={searchQuery}
-        currentMatchedEventId={matchingEvents[searchMatchIndex]?.id}
-        searchMatchRank={
-          matchingEvents.length > 0
-            ? { current: searchMatchIndex + 1, total: matchingEvents.length }
-            : undefined
-        }
-        activeTracks={activeTracks}
-        onToggleTrack={handleToggleTrack}
-        showConnections={showConnections}
-        isQuizMode={isQuizMode}
-        zoomLevel={zoomLevel}
-        onZoomChange={setZoomLevel}
-        onActivePeriodChange={(id) => setActivePeriodId(id)}
-        onSelectEvent={(_ev) => {
-          // Selecting card body only traces mind map in canvas, does not pop modal
-        }}
-        onOpenDetailModal={(ev) => setSelectedEvent(ev)}
-        onRegisterJumpHandler={(fn) => {
-          jumpHandlerRef.current = fn;
-        }}
-        onRegisterNavigateHandler={(fn) => {
-          navigateHandlerRef.current = fn;
-        }}
-      />
+      {/* Main View: Horizontal Panoramic Timeline Canvas OR Vertical Progressive 3-Column View */}
+      {layoutMode === 'horizontal' ? (
+        <HistoryCanvas
+          searchQuery={searchQuery}
+          currentMatchedEventId={matchingEvents[searchMatchIndex]?.id}
+          searchMatchRank={
+            matchingEvents.length > 0
+              ? { current: searchMatchIndex + 1, total: matchingEvents.length }
+              : undefined
+          }
+          activeTracks={activeTracks}
+          onToggleTrack={handleToggleTrack}
+          showConnections={showConnections}
+          isQuizMode={isQuizMode}
+          zoomLevel={zoomLevel}
+          onZoomChange={setZoomLevel}
+          onActivePeriodChange={(id) => setActivePeriodId(id)}
+          onSelectEvent={(_ev) => {
+            // Selecting card body only traces mind map in canvas, does not pop modal
+          }}
+          onOpenDetailModal={(ev) => setSelectedEvent(ev)}
+          onRegisterJumpHandler={(fn) => {
+            jumpHandlerRef.current = fn;
+          }}
+          onRegisterNavigateHandler={(fn) => {
+            navigateHandlerRef.current = fn;
+          }}
+        />
+      ) : (
+        <VerticalHistoryView
+          searchQuery={searchQuery}
+          currentMatchedEventId={matchingEvents[searchMatchIndex]?.id}
+          searchMatchRank={
+            matchingEvents.length > 0
+              ? { current: searchMatchIndex + 1, total: matchingEvents.length }
+              : undefined
+          }
+          activeTracks={activeTracks}
+          onToggleTrack={handleToggleTrack}
+          showConnections={showConnections}
+          isQuizMode={isQuizMode}
+          zoomLevel={zoomLevel}
+          onActivePeriodChange={(id) => setActivePeriodId(id)}
+          onSelectEvent={(_ev) => {
+            // Selecting card body traces mind map in vertical view
+          }}
+          onOpenDetailModal={(ev) => setSelectedEvent(ev)}
+          onRegisterJumpHandler={(fn) => {
+            jumpHandlerRef.current = fn;
+          }}
+          onRegisterNavigateHandler={(fn) => {
+            navigateHandlerRef.current = fn;
+          }}
+        />
+      )}
 
       {/* Deep-reading and examination breakdown Modal */}
       {selectedEvent && (

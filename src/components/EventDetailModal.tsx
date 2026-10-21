@@ -61,7 +61,12 @@ export const EventDetailModal: React.FC<EventDetailModalProps> = ({
     setTimeout(() => setCopied(false), 2000);
   };
 
+  const isMarxism = Boolean(event.isScientificSocialism || event.periodId === 0);
+
   const getIcon = () => {
+    if (isMarxism) {
+      return <BookOpen className="w-5 h-5 text-slate-400" />;
+    }
     switch (event.track) {
       case 'meeting':
         return <Building2 className="w-5 h-5 text-red-600 dark:text-red-400" />;
@@ -80,19 +85,19 @@ export const EventDetailModal: React.FC<EventDetailModalProps> = ({
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
-        <div className="p-6 border-b border-slate-100 dark:border-slate-800 bg-slate-50/70 dark:bg-slate-800/50 flex items-start justify-between gap-4">
+        <div className={`p-6 border-b ${isMarxism ? 'bg-slate-900 text-slate-100 border-slate-800' : 'bg-slate-50/70 dark:bg-slate-800/50 border-slate-100 dark:border-slate-800'} flex items-start justify-between gap-4`}>
           <div className="flex flex-col gap-1.5">
             <div className="flex flex-wrap items-center gap-2 text-xs text-slate-500 dark:text-slate-400">
-              <span className="px-2 py-0.5 rounded-md font-medium bg-slate-200/80 dark:bg-slate-700 text-slate-700 dark:text-slate-300">
+              <span className={`px-2 py-0.5 rounded-md font-medium ${isMarxism ? 'bg-slate-800 text-slate-200 border border-slate-700' : 'bg-slate-200/80 dark:bg-slate-700 text-slate-700 dark:text-slate-300'}`}>
                 {period?.title.split('（')[0]}
               </span>
               <span aria-hidden="true">/</span>
-              <span className={`flex items-center gap-1 font-medium ${track?.accentText}`}>
+              <span className={`flex items-center gap-1 font-medium ${isMarxism ? 'text-slate-500 dark:text-zinc-400' : track?.accentText}`}>
                 {getIcon()}
-                {track?.name}
+                {isMarxism ? '马原·科学社会主义' : track?.name}
               </span>
               <span aria-hidden="true">/</span>
-              <span className="font-mono tabular-nums font-semibold text-slate-700 dark:text-slate-300">
+              <span className={`font-mono tabular-nums font-semibold ${isMarxism ? 'text-slate-600 dark:text-zinc-300' : 'text-slate-700 dark:text-slate-300'}`}>
                 {event.dateStr}
               </span>
             </div>
@@ -159,6 +164,7 @@ export const EventDetailModal: React.FC<EventDetailModalProps> = ({
                     highlights={item.highlights}
                     trackId={event.track}
                     isQuizMode={quizMode}
+                    isScientificSocialism={isMarxism}
                   />
                 </div>
               ))}
@@ -167,8 +173,8 @@ export const EventDetailModal: React.FC<EventDetailModalProps> = ({
 
           {/* Core Takeaway / Exam Key Points */}
           {event.examSummary && (
-            <div className="p-4 rounded-xl bg-amber-500/10 border border-amber-400/40 dark:border-amber-500/30">
-              <div className="text-xs font-bold text-amber-800 dark:text-amber-300 mb-1.5">
+            <div className={`p-4 rounded-xl border ${isMarxism ? 'bg-slate-800/80 border-slate-700/80' : 'bg-amber-500/10 border-amber-400/40 dark:border-amber-500/30'}`}>
+              <div className={`text-xs font-bold mb-1.5 ${isMarxism ? 'text-amber-400' : 'text-amber-800 dark:text-amber-300'}`}>
                 ★ 命题结论与历史经验总结
               </div>
               <div className="text-[14px] leading-relaxed text-slate-800 dark:text-slate-200">
@@ -184,6 +190,7 @@ export const EventDetailModal: React.FC<EventDetailModalProps> = ({
                   ]}
                   trackId={event.track}
                   isQuizMode={quizMode}
+                  isScientificSocialism={isMarxism}
                 />
               </div>
             </div>

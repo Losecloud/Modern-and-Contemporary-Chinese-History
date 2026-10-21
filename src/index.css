@@ -1,5 +1,12 @@
 @import "tailwindcss";
 
+/* 显式声明扫描源：确保 src 下所有组件的 Tailwind 工具类都被完整生成 */
+@source "./**/*.{ts,tsx}";
+@source "./App.tsx";
+@source "./components";
+@source "./data";
+@source "./utils";
+
 @layer base {
   html, body {
     margin: 0;

@@ -52,7 +52,7 @@ export const StudyGuideModal: React.FC<StudyGuideModalProps> = ({
           <div className="space-y-3">
             <h3 className="text-sm font-bold text-slate-900 dark:text-slate-100 flex items-center gap-2">
               <GitFork className="w-4 h-4 text-amber-600" />
-              <span>一、横向四大水平连贯轨道的宏大逻辑体系</span>
+              <span>一、三大横向轨道的宏大逻辑体系</span>
             </h3>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
@@ -89,7 +89,7 @@ export const StudyGuideModal: React.FC<StudyGuideModalProps> = ({
           <div className="space-y-3">
             <h3 className="text-sm font-bold text-slate-900 dark:text-slate-100 flex items-center gap-2">
               <Lightbulb className="w-4 h-4 text-amber-600" />
-              <span>二、七大历史时期快速跳跃导航</span>
+              <span>二、八大历史时期全景快速跳跃导航（含序篇马克思主义）</span>
             </h3>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2.5">
