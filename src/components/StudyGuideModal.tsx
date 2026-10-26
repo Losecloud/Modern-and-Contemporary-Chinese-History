@@ -17,20 +17,20 @@ export const StudyGuideModal: React.FC<StudyGuideModalProps> = ({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6 bg-slate-900/60 backdrop-blur-xs">
+    <div className="c25 backdrop-blur-xs">
       <div
-        className="relative w-full max-w-4xl max-h-[90vh] bg-white dark:bg-slate-900 rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-800 flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-150"
+        className="c118 animate-in fade-in zoom-in-95 duration-150"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
-        <div className="p-6 border-b border-slate-100 dark:border-slate-800 bg-slate-50/70 dark:bg-slate-800/50 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="p-2.5 rounded-xl bg-amber-500/10 text-amber-700 dark:text-amber-400">
+        <div className="c119">
+          <div className="c5 gap-3">
+            <div className="c120">
               <BookOpen className="w-6 h-6" />
             </div>
             <div>
               <h2 className="text-xl font-bold text-slate-900 dark:text-slate-100">
-                中国近现代史纲要全景逻辑脉络 (1840 — 2024)
+                中国近现代史纲要全景逻辑脉络 (1840 — 2026)
               </h2>
               <p className="text-xs text-slate-500 dark:text-slate-400">
                 涵盖从鸦片战争到二十届三中全会全史实、四大水平阅读连贯轨道与七大历史时期
@@ -47,7 +47,7 @@ export const StudyGuideModal: React.FC<StudyGuideModalProps> = ({
         </div>
 
         {/* Content */}
-        <div className="p-6 overflow-y-auto space-y-6 text-sm text-slate-700 dark:text-slate-300">
+        <div className="c121">
           {/* Guide 1: Four Horizontal Tracks */}
           <div className="space-y-3">
             <h3 className="text-sm font-bold text-slate-900 dark:text-slate-100 flex items-center gap-2">
@@ -56,7 +56,7 @@ export const StudyGuideModal: React.FC<StudyGuideModalProps> = ({
             </h3>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-              <div className="p-3.5 rounded-xl border border-red-200 dark:border-red-900/50 bg-red-50/30 dark:bg-red-950/20">
+              <div className="c122">
                 <span className="text-xs font-bold text-red-700 dark:text-red-400 block mb-1">
                   1. 核心会议轨（第一排决策主轴）
                 </span>
@@ -65,7 +65,7 @@ export const StudyGuideModal: React.FC<StudyGuideModalProps> = ({
                 </p>
               </div>
 
-              <div className="p-3.5 rounded-xl border border-amber-200 dark:border-amber-900/50 bg-amber-50/30 dark:bg-amber-950/20">
+              <div className="c123">
                 <span className="text-xs font-bold text-amber-700 dark:text-amber-400 block mb-1">
                   2. 革命武装斗争轨（第二排实践铁血支撑）
                 </span>
@@ -74,7 +74,7 @@ export const StudyGuideModal: React.FC<StudyGuideModalProps> = ({
                 </p>
               </div>
 
-              <div className="p-3.5 rounded-xl border border-emerald-200 dark:border-emerald-900/50 bg-emerald-50/30 dark:bg-emerald-950/20">
+              <div className="c124">
                 <span className="text-xs font-bold text-emerald-700 dark:text-emerald-400 block mb-1">
                   3. 思想理论、经典著作与经验教训轨（第三排理论升华与规律总结）
                 </span>
@@ -100,7 +100,7 @@ export const StudyGuideModal: React.FC<StudyGuideModalProps> = ({
                     onJumpToPeriod(period.id);
                     onClose();
                   }}
-                  className="p-3 rounded-xl border border-slate-200 dark:border-slate-800 hover:border-amber-400 dark:hover:border-amber-500 bg-slate-50/50 dark:bg-slate-800/40 hover:bg-amber-50/20 transition-all cursor-pointer group"
+                  className="c125 hover:border-amber-400 dark:hover:border-amber-500 hover:bg-amber-50/20 transition-all group"
                 >
                   <div className="flex items-center justify-between text-xs mb-1">
                     <span className="font-bold text-slate-800 dark:text-slate-200">
@@ -121,7 +121,7 @@ export const StudyGuideModal: React.FC<StudyGuideModalProps> = ({
         </div>
 
         {/* Footer */}
-        <div className="p-4 bg-slate-50 dark:bg-slate-800/60 border-t border-slate-100 dark:border-slate-800 flex justify-end">
+        <div className="c126">
           <button
             onClick={onClose}
             className="px-5 py-2 bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-900 rounded-lg text-xs font-semibold hover:bg-slate-800 transition-colors"

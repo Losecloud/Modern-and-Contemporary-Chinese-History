@@ -6,14 +6,65 @@
 import React, { useState, useRef, useMemo, useEffect } from 'react';
 import { HistoryEvent, TrackId } from './types/history';
 import { HISTORY_EVENTS } from './data/historyData';
-import { Header } from './components/Header';
+import { Header, type MainView } from './components/Header';
 import { WorkspaceToolbar } from './components/WorkspaceToolbar';
 import { HistoryCanvas } from './components/HistoryCanvas';
 import { VerticalHistoryView } from './components/VerticalHistoryView';
 import { EventDetailModal } from './components/EventDetailModal';
 import { StudyGuideModal } from './components/StudyGuideModal';
+import { computeExamCounts, loadExamQuestions } from './utils/examQuiz';
+import {
+  loadCardWidthOverrides,
+  saveCardWidthOverrides,
+  loadCardXOverrides,
+  saveCardXOverrides,
+} from './utils/canvasLayout';
 
 export default function App() {
+  const [mainView, setMainView] = useState<MainView>('canvas');
+  const [theme, setTheme] = useState<'light' | 'dark'>(() =>
+    document.documentElement.classList.contains('dark') ? 'dark' : 'light'
+  );
+  const practiceFrameRef = useRef<HTMLIFrameElement | null>(null);
+
+  // 主题同步：外层 html.dark + 持久化 + 通知内嵌真题页
+  useEffect(() => {
+    document.documentElement.classList.toggle('dark', theme === 'dark');
+    try {
+      localStorage.setItem('app-theme', theme);
+    } catch {
+      // 本地存储不可用时忽略
+    }
+    practiceFrameRef.current?.contentWindow?.postMessage({ type: 'theme', theme }, '*');
+  }, [theme]);
+
+  const syncThemeToPractice = () => {
+    practiceFrameRef.current?.contentWindow?.postMessage({ type: 'theme', theme }, '*');
+  };
+
+  // 真题数量：等首屏渲染完成后再载入题库并批量匹配，避免拖慢启动
+  useEffect(() => {
+    let alive = true;
+    const timer = window.setTimeout(() => {
+      loadExamQuestions()
+        .then((all) => {
+          if (alive) setExamCounts(computeExamCounts(HISTORY_EVENTS, all));
+        })
+        .catch(() => {
+          // 题库不可用时卡片不显示数量，不影响浏览
+        });
+    }, 400);
+    return () => {
+      alive = false;
+      window.clearTimeout(timer);
+    };
+  }, []);
+
+  const openDetail = (ev: HistoryEvent, practice: boolean) => {
+    setDetailPractice(practice);
+    setSelectedEvent(ev);
+  };
+
   const [layoutMode, setLayoutMode] = useState<'horizontal' | 'vertical'>('horizontal');
   const [searchQuery, setSearchQuery] = useState('');
   const [activeTracks, setActiveTracks] = useState<Set<TrackId>>(
@@ -23,8 +74,37 @@ export default function App() {
   const [isQuizMode, setIsQuizMode] = useState(false);
   const [zoomLevel, setZoomLevel] = useState(1.0);
   const [selectedEvent, setSelectedEvent] = useState<HistoryEvent | null>(null);
+  /** 详情弹窗是否直接落在真题练习页 */
+  const [detailPractice, setDetailPractice] = useState(false);
+  const [examCounts, setExamCounts] = useState<Record<string, number>>({});
   const [isStudyGuideOpen, setIsStudyGuideOpen] = useState(false);
   const [activePeriodId, setActivePeriodId] = useState<number>(1);
+
+  // 编辑模式：拖拽调整卡片宽度，点击 √ 保存到 localStorage
+  const [isEditMode, setIsEditMode] = useState(false);
+  const [cardWidths, setCardWidths] = useState<Record<string, number>>(() =>
+    loadCardWidthOverrides()
+  );
+  /** groupId → 编辑模式左右拖拽后的卡片左边界 X */
+  const [cardXs, setCardXs] = useState<Record<string, number>>(() => loadCardXOverrides());
+
+  const handleToggleEditMode = () => {
+    setIsEditMode((prev) => {
+      if (prev) {
+        saveCardWidthOverrides(cardWidths);
+        saveCardXOverrides(cardXs);
+      }
+      return !prev;
+    });
+  };
+
+  const handleResizeCard = (eventId: string, width: number) => {
+    setCardWidths((prev) => ({ ...prev, [eventId]: width }));
+  };
+
+  const handleMoveCard = (groupId: string, x: number) => {
+    setCardXs((prev) => (prev[groupId] === x ? prev : { ...prev, [groupId]: x }));
+  };
 
   // References to canvas jump and navigate methods
   const jumpHandlerRef = useRef<((periodId: number) => void) | null>(null);
@@ -151,14 +231,26 @@ export default function App() {
     <div className="flex flex-col w-screen h-screen overflow-hidden bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 font-sans antialiased">
       {/* 3-Zone Top Bar Contract */}
       <Header
-        activePeriodId={activePeriodId}
-        onJumpToPeriod={(id) => {
-          setActivePeriodId(id);
-          handleJumpToPeriod(id);
-        }}
+        view={mainView}
+        onViewChange={setMainView}
+        theme={theme}
+        onToggleTheme={() => setTheme((prev) => (prev === 'dark' ? 'light' : 'dark'))}
         onOpenStudyGuide={() => setIsStudyGuideOpen(true)}
+        isEditMode={isEditMode}
+        onToggleEditMode={handleToggleEditMode}
       />
 
+      {mainView === 'practice' ? (
+        /* 真题练习：沿用知政真题应用，仅载入 2007—2026 纯真题数据 */
+        <iframe
+          ref={practiceFrameRef}
+          src="./practice/index.html"
+          title="考研政治真题练习"
+          onLoad={syncThemeToPractice}
+          className="flex-1 w-full border-0 bg-white dark:bg-slate-900"
+        />
+      ) : (
+        <>
       {/* Workspace Toolbar with Stepper Search & Layout Mode Switcher */}
       <WorkspaceToolbar
         layoutMode={layoutMode}
@@ -180,6 +272,11 @@ export default function App() {
         onToggleConnections={() => setShowConnections((prev) => !prev)}
         isQuizMode={isQuizMode}
         onToggleQuizMode={() => setIsQuizMode((prev) => !prev)}
+        activePeriodId={activePeriodId}
+        onJumpToPeriod={(id) => {
+          setActivePeriodId(id);
+          handleJumpToPeriod(id);
+        }}
       />
 
       {/* Main View: Horizontal Panoramic Timeline Canvas OR Vertical Progressive 3-Column View */}
@@ -202,13 +299,20 @@ export default function App() {
           onSelectEvent={(_ev) => {
             // Selecting card body only traces mind map in canvas, does not pop modal
           }}
-          onOpenDetailModal={(ev) => setSelectedEvent(ev)}
+          onOpenDetailModal={(ev) => openDetail(ev, false)}
+          onOpenPracticeModal={(ev) => openDetail(ev, true)}
+          examCounts={examCounts}
           onRegisterJumpHandler={(fn) => {
             jumpHandlerRef.current = fn;
           }}
           onRegisterNavigateHandler={(fn) => {
             navigateHandlerRef.current = fn;
           }}
+          isEditMode={isEditMode}
+          cardWidths={cardWidths}
+          onResizeCard={handleResizeCard}
+          cardXs={cardXs}
+          onMoveCard={handleMoveCard}
         />
       ) : (
         <VerticalHistoryView
@@ -228,7 +332,9 @@ export default function App() {
           onSelectEvent={(_ev) => {
             // Selecting card body traces mind map in vertical view
           }}
-          onOpenDetailModal={(ev) => setSelectedEvent(ev)}
+          onOpenDetailModal={(ev) => openDetail(ev, false)}
+          onOpenPracticeModal={(ev) => openDetail(ev, true)}
+          examCounts={examCounts}
           onRegisterJumpHandler={(fn) => {
             jumpHandlerRef.current = fn;
           }}
@@ -237,11 +343,15 @@ export default function App() {
           }}
         />
       )}
+        </>
+      )}
 
       {/* Deep-reading and examination breakdown Modal */}
       {selectedEvent && (
         <EventDetailModal
+          key={`${selectedEvent.id}:${detailPractice ? 'practice' : 'detail'}`}
           event={selectedEvent}
+          initialPracticeMode={detailPractice}
           onClose={() => setSelectedEvent(null)}
           onNavigateTo={handleNavigateToEvent}
         />

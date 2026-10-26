@@ -31,7 +31,7 @@ export const TrackHeader = React.memo<TrackHeaderProps>(({
                 zIndex: 12,
                 width: '26px',
               }}
-              className="flex flex-col items-center py-2.5 px-0.5 rounded bg-white/85 dark:bg-slate-900/85 border border-slate-200/80 dark:border-slate-800/80 backdrop-blur-xs shadow-2xs transition-all duration-75"
+              className="c142 backdrop-blur-xs shadow-2xs"
             >
               {/* Minimal subtle dot indicating track color */}
               <span
@@ -45,7 +45,7 @@ export const TrackHeader = React.memo<TrackHeaderProps>(({
                   writingMode: 'vertical-rl',
                   textOrientation: 'upright',
                 }}
-                className="text-[11px] font-normal tracking-[0.2em] text-slate-500 dark:text-slate-400 select-none whitespace-nowrap leading-none"
+                className="c144 tracking-[0.2em] leading-none"
               >
                 {track.name}
               </span>
@@ -61,7 +61,7 @@ export const TrackHeader = React.memo<TrackHeaderProps>(({
                   zIndex: 12,
                   width: '26px',
                 }}
-                className="flex flex-col items-center py-2.5 px-0.5 rounded bg-slate-50/85 dark:bg-zinc-900/85 border border-slate-200/80 dark:border-zinc-800/80 backdrop-blur-xs shadow-2xs transition-all duration-75"
+                className="c143 backdrop-blur-xs shadow-2xs"
               >
                 {/* Low-saturation subtle gray dot */}
                 <span className="w-1.5 h-1.5 rounded-full mb-2 shrink-0 opacity-70 bg-slate-400 dark:bg-zinc-500" />
@@ -72,7 +72,7 @@ export const TrackHeader = React.memo<TrackHeaderProps>(({
                     writingMode: 'vertical-rl',
                     textOrientation: 'upright',
                   }}
-                  className="text-[11px] font-normal tracking-[0.2em] text-slate-500 dark:text-zinc-400 select-none whitespace-nowrap leading-none"
+                  className="c145 tracking-[0.2em] leading-none"
                 >
                   马原·科学社会主义理论
                 </span>

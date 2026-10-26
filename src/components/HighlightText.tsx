@@ -30,7 +30,7 @@ export const HighlightSearch: React.FC<{ text: string; query?: string }> = ({ te
           return (
             <mark
               key={index}
-              className="font-bold text-slate-950 bg-amber-300 dark:bg-amber-400 px-1 py-0.5 rounded shadow-2xs ring-1 ring-amber-500/70"
+              className="c97"
             >
               {part}
             </mark>
@@ -94,13 +94,13 @@ export const HighlightText: React.FC<HighlightTextProps> = ({
             return (
               <span
                 key={index}
-                className="group relative inline-block cursor-pointer px-1 py-0.5 mx-0.5 rounded bg-slate-200 dark:bg-slate-700 select-none transition-all duration-200 hover:bg-amber-100 hover:text-amber-950 dark:hover:bg-amber-900/60 dark:hover:text-amber-100"
+                className="c98"
                 title="点击或悬停显示考点"
               >
-                <span className="blur-xs group-hover:blur-none select-none font-bold text-transparent group-hover:text-inherit transition-all">
+                <span className="c99">
                   <HighlightSearch text={part} query={searchQuery} />
                 </span>
-                <span className="absolute inset-0 flex items-center justify-center text-[10px] text-slate-500 dark:text-slate-400 group-hover:hidden font-mono">
+                <span className="c100">
                   [考点]
                 </span>
               </span>

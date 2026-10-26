@@ -1,0 +1,212 @@
+/* className 长串别名映射表：.cN 与原始 Tailwind 工具类的对应关系
+   仅包含 Tailwind v4 标准原子工具类，变体(hover/focus/group-hover)和插件类(shadow-2xs/blur-xs/animate-in)
+   留在组件里直接使用；组件里可混合使用普通工具类和别名 */
+
+/* ── 图标尺寸 ── */
+.c1 { @apply w-3 h-3; }
+.c2 { @apply w-3.5 h-3.5; }
+.c3 { @apply w-4 h-4; }
+.c4 { @apply w-5 h-5; }
+
+/* ── 布局骨架 ── */
+.c5 { @apply flex items-center; }
+.c6 { @apply flex items-center justify-between; }
+.c7 { @apply flex flex-col; }
+.c8 { @apply flex-col gap-1.5; }
+.c9 { @apply flex flex-col gap-2.5; }
+.c10 { @apply flex items-center gap-1.5; }
+.c11 { @apply flex items-center gap-2; }
+.c12 { @apply flex flex-wrap items-center gap-2; }
+.c13 { @apply flex items-center gap-1; }
+.c14 { @apply space-y-6; }
+.c15 { @apply space-y-3; }
+.c16 { @apply space-y-3.5; }
+.c17 { @apply space-y-2; }
+
+/* ── 文本 / 排版 ── */
+.c18 { @apply text-xs text-slate-500 dark:text-slate-400; }
+.c19 { @apply text-sm text-slate-600 dark:text-slate-400; }
+.c20 { @apply text-slate-800 dark:text-slate-200; }
+.c21 { @apply text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider flex items-center gap-1.5; }
+.c22 { @apply font-semibold text-slate-800 dark:text-slate-200; }
+.c23 { @apply text-[11px] font-mono tabular-nums; }
+.c24 { @apply font-mono tabular-nums font-semibold; }
+
+/* ── Modal 容器 ── */
+.c25 { @apply fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6 bg-slate-900/60; }
+.c26 { @apply relative w-full max-w-3xl max-h-[90vh] bg-white dark:bg-slate-900 rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-800 flex flex-col overflow-hidden select-text; }
+.c27 { @apply p-6 border-b flex items-start justify-between gap-4; }
+.c28 { @apply p-6 overflow-y-auto text-sm; }
+.c29 { @apply p-4 bg-slate-50 dark:bg-slate-800/60 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between text-xs text-slate-500; }
+
+/* ── Modal Header 变体：普通 vs 马原 ── */
+.c30 { @apply bg-slate-50/70 dark:bg-slate-800/50 border-slate-100 dark:border-slate-800 text-slate-800 dark:text-slate-200; }
+.c31 { @apply bg-gradient-to-r from-slate-100/90 via-slate-100/70 to-slate-200/50 dark:from-zinc-800/80 dark:via-zinc-800/60 dark:to-zinc-900/40 border-slate-200/80 dark:border-zinc-700/60 text-slate-800 dark:text-zinc-200; }
+
+/* ── Modal 底部按钮 / 标签 ── */
+.c32 { @apply px-4 py-2 bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-900 rounded-lg font-medium transition-colors cursor-pointer hover:bg-slate-700 dark:hover:bg-white active:scale-[0.98]; }
+.c33 { @apply p-2 rounded-lg border text-xs font-medium flex items-center gap-1.5 transition-colors cursor-pointer; }
+.c34 { @apply p-2 rounded-lg text-slate-400 transition-colors cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-slate-700 dark:hover:text-slate-200; }
+.c35 { @apply bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700 hover:border-slate-400 dark:hover:border-slate-500 hover:text-slate-900 dark:hover:text-white; }
+.c36 { @apply bg-amber-100 dark:bg-amber-900/50 border-amber-300 text-amber-900 dark:text-amber-200 hover:bg-amber-200 dark:hover:bg-amber-900/70 hover:border-amber-400; }
+.c37 { @apply px-2 py-0.5 rounded-md font-medium bg-slate-200/80 dark:bg-slate-700 text-slate-700 dark:text-slate-300 border border-slate-300/70 dark:border-slate-700; }
+.c38 { @apply px-2 py-0.5 rounded-md font-medium bg-slate-200/80 text-slate-600 border border-slate-300/70 dark:bg-zinc-800/80 dark:text-zinc-400 dark:border-zinc-700/60; }
+
+/* ── 卡片容器 ── */
+.c39 { @apply relative flex flex-col rounded-xl border text-left; }
+.c40 { @apply bg-white/95 dark:bg-slate-900/95 text-slate-800 dark:text-slate-200; }
+.c41 { @apply bg-slate-50/95 dark:bg-zinc-900/80 text-slate-700 dark:text-zinc-300 ring-1 ring-slate-200/80 dark:ring-zinc-800/70; }
+.c42 { @apply flex flex-col gap-1; padding: 8px calc(var(--spacing) * 3); }
+.c43 { @apply flex items-center justify-between gap-2 text-xs; }
+.c44 { @apply mt-auto px-3.5 py-2.5 rounded-b-xl border-t flex flex-wrap items-center gap-1.5 text-[11.5px]; }
+.c45 { @apply bg-slate-50/80 dark:bg-slate-800/40 border-slate-100 dark:border-slate-800 text-slate-600 dark:text-slate-300; }
+.c46 { @apply bg-slate-50/60 dark:bg-zinc-900/40 border-slate-200/70 dark:border-zinc-800/60 text-slate-500 dark:text-zinc-400; }
+
+/* ── 卡片内容区 ── */
+.c47 { @apply p-3.5 flex flex-col gap-2.5 text-[14px] leading-relaxed; }
+.c48 { @apply text-slate-800 dark:text-slate-200; }
+.c49 { @apply text-slate-600 dark:text-zinc-300; }
+.c50 { @apply text-[13.5px] leading-[1.65] font-normal; }
+
+/* ── Exam Summary / 核心考点块 ── */
+.c51 { @apply mt-1 p-2.5 rounded-lg border text-[13px] leading-relaxed; }
+.c52 { @apply bg-amber-50/80 dark:bg-amber-950/40 border-amber-200/80 dark:border-amber-800/50 text-amber-950 dark:text-amber-200; }
+.c53 { @apply bg-slate-100/70 dark:bg-zinc-800/40 border-slate-200/80 dark:border-zinc-700/60 text-slate-600 dark:text-zinc-300; }
+
+/* ── 导图分支按钮 ── */
+.c54 { @apply inline-flex items-center gap-0.5 px-2 py-0.5 rounded border transition-colors cursor-pointer; }
+.c55 { @apply bg-white dark:bg-slate-700 border-slate-200 dark:border-slate-600 text-slate-700 dark:text-slate-300; }
+.c56 { @apply bg-white/80 dark:bg-zinc-800/60 border-slate-200 dark:border-zinc-700/60 text-slate-600 dark:text-zinc-300; }
+
+/* ── 搜索命中 / Milestone Badge ── */
+.c60 { @apply absolute -top-3 left-4 z-20 flex items-center gap-1 bg-amber-500 text-white text-[11px] font-bold px-2.5 py-0.5 rounded-full shadow-md; }
+.c61 { @apply absolute -top-2.5 right-12 z-20 flex items-center gap-1 bg-amber-500 text-white text-[11px] font-medium px-2 py-0.5 rounded-full shadow-xs; }
+
+/* ── 前置/后继 按钮容器 ── */
+.c62 { @apply p-3.5 rounded-xl border border-blue-200/60 dark:border-blue-900/40 bg-blue-50/30 dark:bg-blue-950/20; }
+.c63 { @apply p-3.5 rounded-xl border border-amber-200/60 dark:border-amber-900/40 bg-amber-50/30 dark:bg-amber-950/20; }
+.c64 { @apply w-full text-left p-2 rounded-lg bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 transition-all text-xs flex items-center justify-between cursor-pointer hover:bg-blue-50 dark:hover:bg-blue-950/30 hover:border-blue-300 dark:hover:border-blue-700; }
+.c65 { @apply w-full text-left p-2 rounded-lg bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 transition-all text-xs flex items-center justify-between cursor-pointer hover:bg-amber-50 dark:hover:bg-amber-950/30 hover:border-amber-300 dark:hover:border-amber-700; }
+
+/* ── 顶部 Header 组件 ── */
+.c66 { @apply flex items-center justify-between gap-6 px-6 py-3.5 bg-white/95 dark:bg-slate-900/95 border-b border-slate-200 dark:border-slate-800 shrink-0 z-40; }
+.c67 { @apply text-lg font-bold tracking-tight text-slate-900 dark:text-slate-100 whitespace-nowrap shrink-0; }
+.c68 { @apply hidden lg:flex items-center gap-5 text-xs xl:text-sm; }
+.c69 { @apply whitespace-nowrap shrink-0 cursor-pointer; }
+.c70 { @apply font-bold text-slate-950 dark:text-white bg-slate-200/85 dark:bg-slate-700/85 px-2.5 py-1 rounded-md shadow-xs; }
+.c71 { @apply font-normal text-slate-600 dark:text-slate-400 px-2 py-1; }
+.c72 { @apply px-4 py-2 text-xs font-medium text-white bg-slate-900 dark:bg-slate-100 dark:text-slate-900 rounded-lg whitespace-nowrap shrink-0 cursor-pointer shadow-xs; }
+
+/* ── 画布容器 / 工具栏 ── */
+.c73 { @apply relative flex-1 w-full h-full overflow-hidden bg-slate-100/70 dark:bg-slate-950 flex flex-col select-none; }
+.c74 { @apply relative flex-1 w-full h-full overflow-x-auto overflow-y-auto select-none; }
+.c75 { @apply absolute bottom-4 right-6 z-30 flex items-center gap-2 bg-white/90 dark:bg-slate-900/90 px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-800 shadow-lg text-xs; }
+
+/* ── 画布工具栏按钮 ── */
+.c76 { @apply relative flex items-center justify-center w-7 h-7 rounded-md border transition-transform cursor-pointer; }
+.c77 { @apply absolute top-full mt-1.5 hidden z-50 flex-col items-center pointer-events-none whitespace-nowrap; }
+.c78 { @apply px-2 py-1 rounded bg-slate-900 dark:bg-slate-100 text-white dark:text-slate-900 text-[11px] font-medium shadow-md; }
+
+/* ── Timeline Scale 组件 ── */
+.c79 { @apply bg-white/95 dark:bg-slate-900/95 border-b border-slate-200 dark:border-slate-800 flex flex-col shadow-sm select-none; }
+.c80 { @apply relative h-12 w-full border-b border-slate-100 dark:border-slate-800 overflow-hidden; }
+.c81 { @apply px-4 py-1.5 border-r border-slate-200 dark:border-slate-800 flex items-center justify-between transition-colors cursor-pointer; }
+.c82 { @apply relative h-12 w-full flex items-center bg-slate-50/70 dark:bg-slate-900/60; }
+.c83 { @apply flex flex-col justify-between py-1 cursor-pointer; }
+.c84 { @apply text-[11px] font-mono tabular-nums font-semibold transition-colors; }
+
+/* ── 画布泳道 / 背景 ── */
+.c85 { @apply absolute inset-0 pointer-events-none z-0; }
+.c86 { @apply absolute inset-0 pointer-events-none; }
+.c87 { @apply absolute inset-0 w-full h-full pointer-events-none; }
+.c88 { @apply absolute left-0; }
+.c89 { @apply border-r border-dotted border-slate-200/80 dark:border-slate-800/70; }
+.c90 { @apply border-r-2 border-dashed border-slate-300 dark:border-slate-700/80; }
+
+/* ── 强调色 / 语义色块 ── */
+.c91 { @apply bg-red-500/[0.015] dark:bg-red-500/[0.025] border-y border-red-500/10 dark:border-red-500/20; }
+.c92 { @apply bg-amber-500/[0.015] dark:bg-amber-500/[0.025] border-b border-amber-500/10 dark:border-amber-500/20; }
+.c93 { @apply bg-emerald-500/[0.015] dark:bg-emerald-500/[0.025] border-b border-emerald-500/10 dark:border-emerald-500/20; }
+
+/* ── 泳道内分隔带 ── */
+.c94 { @apply absolute left-0 border-t border-dashed border-slate-300/80 dark:border-slate-700/60 flex items-center; }
+.c95 { @apply sticky left-14 -mt-2.5 px-2.5 py-0.5 rounded bg-slate-100/90 dark:bg-zinc-800/90 border border-slate-200/90 dark:border-zinc-700 text-[10px] text-slate-500 dark:text-zinc-400 select-none; }
+
+/* ── 时期分界标签 ── */
+.c96 { @apply sticky top-28 -ml-3 mt-4 px-2 py-0.5 text-[11px] text-slate-500 dark:text-slate-400 whitespace-nowrap rotate-90 origin-left; }
+
+/* ── HighlightText / 考点样式 ── */
+.c97 { @apply font-bold text-slate-950 bg-amber-300 dark:bg-amber-400 px-1 py-0.5 rounded ring-1 ring-amber-500/70; }
+.c98 { @apply relative inline-block cursor-pointer px-1 py-0.5 mx-0.5 rounded bg-slate-200 dark:bg-slate-700 select-none transition-all duration-200; }
+.c99 { @apply select-none font-bold text-transparent transition-all; }
+.c100 { @apply absolute inset-0 flex items-center justify-center text-[10px] text-slate-500 dark:text-slate-400 font-mono; }
+
+/* ── Exam 原文块 ── */
+.c101 { @apply space-y-3 p-4 rounded-xl bg-slate-50 dark:bg-slate-800/40 border border-slate-200/80 dark:border-slate-700/80; }
+.c102 { @apply text-[14.5px] leading-relaxed; }
+
+/* ── 连线 / Leader Line SVG ── */
+.c104 { @apply transition-opacity duration-150; }
+.c105 { @apply cursor-pointer pointer-events-auto; }
+
+/* ── 滚动条 / overflow ── */
+.c106 { @apply overflow-hidden; }
+.c107 { @apply select-none; }
+
+/* ── 颜色语义变体 ── */
+.c108 { @apply text-red-600 dark:text-red-400 shrink-0; }
+.c109 { @apply text-amber-600 dark:text-amber-400 shrink-0; }
+.c110 { @apply text-emerald-600 dark:text-emerald-400 shrink-0; }
+.c111 { @apply text-slate-400 shrink-0; }
+
+/* ── HistoryCanvas 画布主体 ── */
+.c112 { @apply relative flex items-center justify-center w-7 h-7 rounded-md border backdrop-blur-md transition-transform cursor-pointer; }
+
+/* ── 全局俯瞰图 Minimap（横向长条，因史纲横向条目多） ── */
+.c113 { @apply absolute bottom-4 right-6 z-30 w-[480px] p-2 rounded-xl shadow-2xl border backdrop-blur-md flex flex-col bg-white/95 dark:bg-slate-900/95 border-slate-200 dark:border-slate-800; }
+.c146 { @apply flex items-center justify-between text-[11px] font-medium mb-1 px-1; }
+.c147 { @apply text-[10px] font-mono text-slate-500 dark:text-slate-400; }
+.c148 { @apply relative rounded-lg overflow-hidden cursor-crosshair border bg-slate-50 dark:bg-slate-900 border-slate-200 dark:border-slate-800; }
+.c149 { @apply absolute rounded-full -translate-x-1/2 -translate-y-1/2 transition-all w-2 h-2; }
+.c150 { @apply absolute border-2 border-amber-500 bg-amber-500/15 rounded-sm pointer-events-none transition-all; }
+.c151 { @apply absolute top-0 bottom-0 w-0.5 bg-slate-400/70 dark:bg-slate-500/60 pointer-events-none; }
+
+/* ── StudyGuideModal（大尺寸） ── */
+.c118 { @apply relative w-full max-w-4xl max-h-[90vh] bg-white dark:bg-slate-900 rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-800 flex flex-col overflow-hidden; }
+.c119 { @apply p-6 border-b border-slate-100 dark:border-slate-800 bg-slate-50/70 dark:bg-slate-800/50 flex items-center justify-between; }
+.c120 { @apply p-2.5 rounded-xl bg-amber-500/10 text-amber-700 dark:text-amber-400; }
+.c121 { @apply p-6 overflow-y-auto space-y-6 text-sm text-slate-700 dark:text-slate-300; }
+
+/* ── StudyGuideModal 三色 period card ── */
+.c122 { @apply p-3.5 rounded-xl border border-red-200 dark:border-red-900/50 bg-red-50/30 dark:bg-red-950/20; }
+.c123 { @apply p-3.5 rounded-xl border border-amber-200 dark:border-amber-900/50 bg-amber-50/30 dark:bg-amber-950/20; }
+.c124 { @apply p-3.5 rounded-xl border border-emerald-200 dark:border-emerald-900/50 bg-emerald-50/30 dark:bg-emerald-950/20; }
+.c125 { @apply p-3 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/40 cursor-pointer; }
+.c126 { @apply p-4 bg-slate-50 dark:bg-slate-800/60 border-t border-slate-100 dark:border-slate-800 flex justify-end; }
+
+/* ── EventCard 边框语义变体（动态函数返回值） ── */
+.c127 { @apply ring-2 ring-amber-500 border-amber-500 shadow-2xl scale-[1.01]; }
+.c128 { @apply ring-2 ring-slate-400 border-slate-400 shadow-md; }
+.c129 { @apply ring-2 ring-amber-500 border-amber-500 shadow-xl; }
+.c130 { @apply border-slate-300/80 dark:border-zinc-700/60; }
+.c131 { @apply border-red-200/90 dark:border-red-900/50; }
+.c132 { @apply border-amber-200/90 dark:border-amber-900/50; }
+.c133 { @apply border-emerald-200/90 dark:border-emerald-900/50; }
+
+/* ── VerticalHistoryView 纵向视图容器 ── */
+.c134 { @apply flex-1 w-full h-full overflow-hidden flex flex-col bg-slate-100/70 dark:bg-slate-950 text-slate-800 dark:text-slate-200; }
+.c135 { @apply flex-1 h-full overflow-y-auto overflow-x-auto relative flex flex-col scroll-smooth; }
+.c136 { @apply sticky top-0 z-30 bg-white/95 dark:bg-slate-900/95 border-b border-slate-200 dark:border-slate-800 select-none; }
+.c137 { @apply flex items-center justify-between px-3.5 py-1.5 rounded-lg bg-red-50/90 dark:bg-red-950/40 border border-red-200/80 dark:border-red-900/60; }
+.c138 { @apply flex items-center justify-between px-3.5 py-1.5 rounded-lg bg-amber-50/90 dark:bg-amber-950/40 border border-amber-200/80 dark:border-amber-900/60; }
+.c139 { @apply flex items-center justify-between px-3.5 py-1.5 rounded-lg bg-emerald-50/90 dark:bg-emerald-950/40 border border-emerald-200/80 dark:border-emerald-900/60; }
+.c140 { @apply sticky bottom-4 right-6 self-end mr-6 z-30 flex items-center gap-2 bg-white/95 dark:bg-slate-900/95 px-3.5 py-2 rounded-xl border border-slate-200 dark:border-slate-800 text-xs select-none; }
+
+/* ── WorkspaceToolbar 工具栏 ── */
+.c141 { @apply flex flex-wrap items-center justify-between gap-3 px-6 py-2.5 bg-slate-50/90 dark:bg-slate-900/90 border-b border-slate-200 dark:border-slate-800 text-xs text-slate-700 dark:text-slate-300 shrink-0 z-30; }
+
+/* ── TrackHeader 轨道标签 ── */
+.c142 { @apply flex flex-col items-center py-2.5 px-0.5 rounded bg-white/85 dark:bg-slate-900/85 border border-slate-200/80 dark:border-slate-800/80 transition-all duration-75; }
+.c143 { @apply flex flex-col items-center py-2.5 px-0.5 rounded bg-slate-50/85 dark:bg-zinc-900/85 border border-slate-200/80 dark:border-zinc-800/80 transition-all duration-75; }
+.c144 { @apply text-[11px] font-normal text-slate-500 dark:text-slate-400 select-none whitespace-nowrap leading-none; }
+.c145 { @apply text-[11px] font-normal text-slate-500 dark:text-zinc-400 select-none whitespace-nowrap leading-none; }

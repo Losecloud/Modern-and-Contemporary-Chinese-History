@@ -25,6 +25,10 @@ interface VerticalHistoryViewProps {
   zoomLevel: number;
   onSelectEvent: (event: HistoryEvent) => void;
   onOpenDetailModal: (event: HistoryEvent) => void;
+  /** 直接打开该卡片的真题练习弹窗 */
+  onOpenPracticeModal?: (event: HistoryEvent) => void;
+  /** eventId → 该卡片可练习的真题数量 */
+  examCounts?: Record<string, number>;
   onRegisterJumpHandler: (fn: (periodId: number) => void) => void;
   onRegisterNavigateHandler: (fn: (eventId: string) => void) => void;
   onActivePeriodChange?: (periodId: number) => void;
@@ -52,6 +56,8 @@ export const VerticalHistoryView: React.FC<VerticalHistoryViewProps> = ({
   zoomLevel,
   onSelectEvent,
   onOpenDetailModal,
+  onOpenPracticeModal,
+  examCounts,
   onRegisterJumpHandler,
   onRegisterNavigateHandler,
   onActivePeriodChange,
@@ -305,15 +311,15 @@ export const VerticalHistoryView: React.FC<VerticalHistoryViewProps> = ({
   const activeTrackCount = activeTracks.size;
 
   return (
-    <div className="flex-1 w-full h-full overflow-hidden flex flex-col bg-slate-100/70 dark:bg-slate-950 text-slate-800 dark:text-slate-200">
+    <div className="c134">
       {/* Main Continuous Timeline Flow & 3 Columns Area */}
       <main
         ref={scrollContainerRef}
         onScroll={handleScroll}
-        className="flex-1 h-full overflow-y-auto overflow-x-auto relative flex flex-col scroll-smooth"
+        className="c135"
       >
         {/* Sticky 3-Column Header Bar with Synchronized Timeline Header */}
-        <div className="sticky top-0 z-30 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md border-b border-slate-200 dark:border-slate-800 px-4 py-2.5 shadow-xs select-none">
+        <div className="c136 backdrop-blur-md px-4 py-2.5 shadow-xs">
           <div className="flex items-center gap-4 max-w-[1740px] mx-auto w-full">
             {/* Left Timeline Header Notch (Specific Timeline Scale - 从上往下具体时间轴刻度) */}
             <div className="w-12 xl:w-16 shrink-0 flex items-center justify-end gap-1 pr-2 border-r border-slate-200 dark:border-slate-800">
@@ -335,7 +341,7 @@ export const VerticalHistoryView: React.FC<VerticalHistoryViewProps> = ({
             >
               {/* Column 1: Meeting */}
               {activeTracks.has('meeting') && (
-                <div className="flex items-center justify-between px-3.5 py-1.5 rounded-lg bg-red-50/90 dark:bg-red-950/40 border border-red-200/80 dark:border-red-900/60 shadow-2xs">
+                <div className="c137 shadow-2xs">
                   <div className="flex items-center gap-2">
                     <span className="p-1 rounded bg-red-600 text-white">
                       <Building2 className="w-3.5 h-3.5" />
@@ -352,7 +358,7 @@ export const VerticalHistoryView: React.FC<VerticalHistoryViewProps> = ({
 
               {/* Column 2: Armed */}
               {activeTracks.has('armed') && (
-                <div className="flex items-center justify-between px-3.5 py-1.5 rounded-lg bg-amber-50/90 dark:bg-amber-950/40 border border-amber-200/80 dark:border-amber-900/60 shadow-2xs">
+                <div className="c138 shadow-2xs">
                   <div className="flex items-center gap-2">
                     <span className="p-1 rounded bg-amber-600 text-white">
                       <ShieldAlert className="w-3.5 h-3.5" />
@@ -369,7 +375,7 @@ export const VerticalHistoryView: React.FC<VerticalHistoryViewProps> = ({
 
               {/* Column 3: Works */}
               {activeTracks.has('works') && (
-                <div className="flex items-center justify-between px-3.5 py-1.5 rounded-lg bg-emerald-50/90 dark:bg-emerald-950/40 border border-emerald-200/80 dark:border-emerald-900/60 shadow-2xs">
+                <div className="c139 shadow-2xs">
                   <div className="flex items-center gap-2">
                     <span className="p-1 rounded bg-emerald-600 text-white">
                       <BookOpen className="w-3.5 h-3.5" />
@@ -546,6 +552,8 @@ export const VerticalHistoryView: React.FC<VerticalHistoryViewProps> = ({
                                       onSelectEvent(ev);
                                     }}
                                     onOpenDetail={onOpenDetailModal}
+                                    onOpenPractice={onOpenPracticeModal}
+                                    examCount={examCounts?.[event.id]}
                                     onNavigateTo={navigateToCard}
                                   />
                                 </div>
@@ -593,6 +601,8 @@ export const VerticalHistoryView: React.FC<VerticalHistoryViewProps> = ({
                                       onSelectEvent(ev);
                                     }}
                                     onOpenDetail={onOpenDetailModal}
+                                    onOpenPractice={onOpenPracticeModal}
+                                    examCount={examCounts?.[event.id]}
                                     onNavigateTo={navigateToCard}
                                   />
                                 </div>
@@ -640,6 +650,8 @@ export const VerticalHistoryView: React.FC<VerticalHistoryViewProps> = ({
                                     onSelectEvent(ev);
                                   }}
                                   onOpenDetail={onOpenDetailModal}
+                                  onOpenPractice={onOpenPracticeModal}
+                                  examCount={examCounts?.[event.id]}
                                   onNavigateTo={navigateToCard}
                                 />
                               </div>
@@ -693,6 +705,8 @@ export const VerticalHistoryView: React.FC<VerticalHistoryViewProps> = ({
                                         onSelectEvent(ev);
                                       }}
                                       onOpenDetail={onOpenDetailModal}
+                                      onOpenPractice={onOpenPracticeModal}
+                                      examCount={examCounts?.[event.id]}
                                       onNavigateTo={navigateToCard}
                                     />
                                   </div>
@@ -713,7 +727,7 @@ export const VerticalHistoryView: React.FC<VerticalHistoryViewProps> = ({
         </div>
 
         {/* Floating Quick Scrub Pill (Bottom Right) */}
-        <div className="sticky bottom-4 right-6 self-end mr-6 z-30 flex items-center gap-2 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md px-3.5 py-2 rounded-xl border border-slate-200 dark:border-slate-800 shadow-lg text-xs select-none">
+        <div className="c140 backdrop-blur-md shadow-lg">
           <MapPin className="w-3.5 h-3.5 text-amber-500 shrink-0" />
           <span className="text-slate-600 dark:text-slate-300 font-medium text-[11px] font-mono">
             {currentYearInView} 年刻度 · 浏览进度 {Math.round(scrollProgress * 100)}%

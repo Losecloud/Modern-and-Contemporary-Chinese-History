@@ -31,6 +31,17 @@ export interface HistoryEvent {
   xOffset?: number; // timeline standard scale horizontal offset
 }
 
+/**
+ * 时间轴大事记锚点：只用于在时间轴上补齐背景节点（如领导人逝世、文革、大跃进等），
+ * 不进入卡片布局、不参与真题匹配，也不产生阅读负担。
+ */
+export interface HistoryMarker {
+  id: string;
+  dateStr: string;
+  title: string;
+  note?: string;
+}
+
 export interface PeriodInfo {
   id: PeriodId;
   title: string;

@@ -1,6 +1,6 @@
 import React, { useRef, useState, useEffect, useCallback, useMemo } from 'react';
 import { HistoryEvent, TrackId, getCardZIndex } from '../types/history';
-import { HISTORY_EVENTS, TRACKS } from '../data/historyData';
+import { HISTORY_EVENTS, HISTORY_MARKERS, TRACKS } from '../data/historyData';
 import {
   EVENT_LAYOUT_COORDS,
   EVENT_LEADER_LINES,
@@ -8,13 +8,19 @@ import {
   CANVAS_HEIGHT,
   CARD_WIDTH,
   PERIOD_BOUNDARIES,
+  YEAR_TICKS,
+  getScaleAtX,
+  EVENT_GROUPS,
+  EVENT_GROUP_OF,
+  LeaderLineInfo,
+  dateToX,
+  parseEventDate,
 } from '../utils/canvasLayout';
 import { TimelineScale } from './TimelineScale';
 import { TrackHeader } from './TrackHeader';
 import { EventCard } from './EventCard';
 import { SvgConnections } from './SvgConnections';
 import { LeaderLinesLayer } from './LeaderLinesLayer';
-import { MapPin, Navigation } from 'lucide-react';
 
 interface HistoryCanvasProps {
   searchQuery: string;
@@ -28,30 +34,133 @@ interface HistoryCanvasProps {
   onZoomChange?: (zoom: number) => void;
   onSelectEvent: (event: HistoryEvent) => void;
   onOpenDetailModal: (event: HistoryEvent) => void;
+  /** 直接打开该卡片的真题练习弹窗 */
+  onOpenPracticeModal?: (event: HistoryEvent) => void;
+  /** eventId → 该卡片可练习的真题数量 */
+  examCounts?: Record<string, number>;
   onRegisterJumpHandler: (fn: (periodId: number) => void) => void;
   onRegisterNavigateHandler: (fn: (eventId: string) => void) => void;
   onActivePeriodChange?: (periodId: number) => void;
+  /** 编辑模式：卡片右边界可拖拽调整宽度 */
+  isEditMode?: boolean;
+  /** eventId → 自定义卡片宽度（编辑模式保存的结果） */
+  cardWidths?: Record<string, number>;
+  onResizeCard?: (eventId: string, width: number) => void;
+  /** groupId → 自定义卡片左边界 X（编辑模式左右拖拽保存的结果） */
+  cardXs?: Record<string, number>;
+  onMoveCard?: (groupId: string, x: number) => void;
 }
+
+// 视窗位置缓存键（按虚拟画布坐标存储，缩放变化后仍能回到同一历史位置）
+const VIEW_STATE_KEY = 'history_canvas_view_v3';
+/** eventId → 事件对象，供同年合并组内切换时快速取数 */
+const EVENT_BY_ID: Record<string, HistoryEvent> = Object.fromEntries(
+  HISTORY_EVENTS.map((e) => [e.id, e])
+);
+/** groupId → 合并组，拖拽吸附时取该组正确的年份刻度 X */
+const GROUP_BY_ID: Record<string, (typeof EVENT_GROUPS)[number]> = Object.fromEntries(
+  EVENT_GROUPS.map((g) => [g.groupId, g])
+);
+// 首页默认停在 1840 年（时间轴该年刻度对应的画布 x，左侧留 120px 边距）
+const START_VIEW_X = Math.max(0, (YEAR_TICKS.find((tick) => tick.year === 1840)?.x ?? 3840) - 120);
+
+// 大事记锚点坐标（静态数据，模块级计算一次）：按 x 排序后分四行错位，
+// 每次挑「上一个标签最靠左」的一行放，同年密集事件（如 1976 年）也不会互相压盖
+const MARKER_ROWS = 4;
+const MARKER_ROW_GAP = 21;
+const MARKER_COORDS = (() => {
+  const list = HISTORY_MARKERS.map((marker) => {
+    const parsed = parseEventDate(marker.dateStr);
+    return { ...marker, x: dateToX(parsed.dateVal), label: parsed.label, tier: 0 };
+  }).sort((a, b) => a.x - b.x);
+  const lastX = new Array<number>(MARKER_ROWS).fill(-100000);
+  list.forEach((marker) => {
+    let tier = 0;
+    for (let i = 1; i < MARKER_ROWS; i += 1) {
+      if (marker.x - lastX[i] > marker.x - lastX[tier]) tier = i;
+    }
+    marker.tier = tier;
+    lastX[tier] = marker.x;
+  });
+  return list;
+})();
 
 export const HistoryCanvas: React.FC<HistoryCanvasProps> = ({
   searchQuery,
   currentMatchedEventId,
   searchMatchRank,
   activeTracks,
+  onToggleTrack,
   showConnections,
   isQuizMode,
   zoomLevel,
   onZoomChange,
   onSelectEvent,
   onOpenDetailModal,
+  onOpenPracticeModal,
+  examCounts,
   onRegisterJumpHandler,
   onRegisterNavigateHandler,
   onActivePeriodChange,
+  isEditMode = false,
+  cardWidths,
+  onResizeCard,
+  cardXs,
+  onMoveCard,
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const [activeEventId, setActiveEventId] = useState<string | null>(null);
   const [selectedEventId, setSelectedEventId] = useState<string | null>(null);
   const [isDragging, setIsDragging] = useState(false);
+  // eventId → 卡片真实渲染高度（连线锚点统一取边界中点，需实测高度）
+  const [cardHeights, setCardHeights] = useState<Record<string, number>>({});
+  const handleCardHeight = useCallback((eventId: string, height: number) => {
+    setCardHeights((prev) => (prev[eventId] === height ? prev : { ...prev, [eventId]: height }));
+  }, []);
+  // 选中卡片后：只保留「自身 + 与它有直接连线的卡片（出边与入边）」，其余卡片淡化
+  const relatedEventIds = useMemo(() => {
+    if (!selectedEventId) return null;
+    const related = new Set<string>([selectedEventId]);
+    HISTORY_EVENTS.forEach((ev) => {
+      if (ev.id === selectedEventId) {
+        ev.connections.forEach((conn) => related.add(conn.targetId));
+      }
+      if (ev.connections.some((conn) => conn.targetId === selectedEventId)) related.add(ev.id);
+    });
+    return related;
+  }, [selectedEventId]);
+  // 同年合并组的当前选项卡：groupId → eventId（进入页面时随机起始，避免总从第一张开始）
+  const [groupActiveTab, setGroupActiveTab] = useState<Record<string, string>>(() => {
+    const initial: Record<string, string> = {};
+    EVENT_GROUPS.forEach((g) => {
+      if (g.memberIds.length > 1) {
+        initial[g.groupId] = g.memberIds[Math.floor(Math.random() * g.memberIds.length)];
+      }
+    });
+    return initial;
+  });
+
+  const handleTabChange = useCallback((groupId: string, eventId: string) => {
+    setGroupActiveTab((prev) =>
+      prev[groupId] === eventId ? prev : { ...prev, [groupId]: eventId }
+    );
+  }, []);
+
+  // 带 sheet 的卡片自动轮播：每 5 分钟切到组内下一个选项，保证不同时期的内容都能兼顾看到
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setGroupActiveTab((prev) => {
+        const next: Record<string, string> = { ...prev };
+        EVENT_GROUPS.forEach((g) => {
+          if (g.memberIds.length <= 1) return;
+          const curIdx = g.memberIds.indexOf(prev[g.groupId] ?? g.primaryId);
+          next[g.groupId] = g.memberIds[(curIdx + 1) % g.memberIds.length];
+        });
+        return next;
+      });
+    }, 5 * 60 * 1000);
+    return () => clearInterval(timer);
+  }, []);
 
   // Viewport scroll metrics
   const [scrollState, setScrollState] = useState({
@@ -77,6 +186,80 @@ export const HistoryCanvas: React.FC<HistoryCanvasProps> = ({
   const pendingZoomRef = useRef<number | null>(null); // 待提交的最新缩放状态
   const frameRafRef = useRef<number | null>(null); // rAF 去重句柄
 
+  // —— 编辑模式：卡片水平拖拽 ——
+  // 拖拽过程中用本地状态实时渲染位置与延伸线，抬手后再提交给父级持久化
+  const [dragPosition, setDragPosition] = useState<{ groupId: string; x: number } | null>(null);
+  const dragPositionRef = useRef<{ groupId: string; x: number } | null>(null);
+
+  /** 卡片位实际左边界 X：拖拽中 > 已保存的自定义位置 > 默认布局 */
+  const resolveGroupX = useCallback(
+    (groupId: string, fallbackX: number) => {
+      if (dragPosition?.groupId === groupId) return dragPosition.x;
+      const saved = cardXs?.[groupId];
+      return typeof saved === 'number' ? saved : fallbackX;
+    },
+    [dragPosition, cardXs]
+  );
+
+  const handleMoveCard = useCallback((eventId: string, rawX: number) => {
+    const groupId = EVENT_GROUP_OF[eventId] ?? eventId;
+    const exactX = GROUP_BY_ID[groupId]?.exactX ?? EVENT_LAYOUT_COORDS[eventId]?.exactX ?? rawX;
+    // 吸附：左边界接近该卡片正确的年份刻度（屏幕 12px 内）时直接对齐
+    const snapDistance = 12 / (zoomLevelRef.current || 1);
+    const snapped = Math.abs(rawX - exactX) <= snapDistance ? exactX : rawX;
+    const next = Math.max(0, Math.min(TOTAL_CANVAS_WIDTH - 60, snapped));
+    dragPositionRef.current = { groupId, x: next };
+    setDragPosition(dragPositionRef.current);
+  }, []);
+
+  const handleMoveCardEnd = useCallback(() => {
+    const pos = dragPositionRef.current;
+    dragPositionRef.current = null;
+    setDragPosition(null);
+    if (pos) onMoveCard?.(pos.groupId, Math.round(pos.x));
+  }, [onMoveCard]);
+
+  // 延伸线随卡片位置实时生成：只要左边界与正确刻度错位就画线（含拖拽后被移开的卡片）
+  const leaderLines = useMemo<LeaderLineInfo[]>(() => {
+    const lines: LeaderLineInfo[] = [];
+    EVENT_GROUPS.forEach((group) => {
+      if (!activeTracks.has(group.track)) return;
+      const placedX = resolveGroupX(group.groupId, group.x);
+      if (Math.abs(placedX - group.exactX) < 0.5) return;
+      const base = EVENT_LEADER_LINES.find((line) => line.id === group.primaryId);
+      lines.push({
+        id: group.primaryId,
+        title: EVENT_BY_ID[group.primaryId]?.title ?? '',
+        track: group.track,
+        y: group.y,
+        exactX: group.exactX,
+        placedX,
+        shiftAmount: placedX - group.exactX,
+        dateLabel: group.dateLabel,
+        tier: base?.tier ?? 0,
+      });
+    });
+    return lines;
+  }, [activeTracks, resolveGroupX]);
+
+  // 连线锚点用的实际卡片盒：编辑模式拖动/调宽后位置与宽度都会实时反映到连线上
+  const resolvedCoords = useMemo(() => {
+    const map: Record<string, { x: number; y: number; width: number }> = {};
+    EVENT_GROUPS.forEach((group) => {
+      const x = resolveGroupX(group.groupId, group.x);
+      group.memberIds.forEach((id) => {
+        const coord = EVENT_LAYOUT_COORDS[id];
+        if (!coord) return;
+        map[id] = {
+          x,
+          y: coord.y,
+          width: cardWidths?.[group.groupId] ?? cardWidths?.[id] ?? coord.width ?? CARD_WIDTH,
+        };
+      });
+    });
+    return map;
+  }, [resolveGroupX, cardWidths]);
+
   // Count events per track (3 tracks)
   const eventCounts = useMemo(() => {
     const counts: Record<TrackId, number> = {
@@ -91,6 +274,23 @@ export const HistoryCanvas: React.FC<HistoryCanvasProps> = ({
   }, []);
 
   // —— 帧合并刷新：缩放状态提交与滚动状态刷新合并到每帧至多一次 ——
+  const queueSaveView = useCallback(() => {
+    const el = containerRef.current;
+    if (!el) return;
+    const zoom = zoomLevelRef.current || 1;
+    const next = { x: el.scrollLeft / zoom, y: el.scrollTop / zoom };
+    savedViewRef.current = next;
+    if (saveTimerRef.current !== null) window.clearTimeout(saveTimerRef.current);
+    saveTimerRef.current = window.setTimeout(() => {
+      saveTimerRef.current = null;
+      try {
+        localStorage.setItem(VIEW_STATE_KEY, JSON.stringify(next));
+      } catch {
+        // 隐私模式或存储受限时忽略，仅影响记忆功能
+      }
+    }, 300);
+  }, []);
+
   const flushFrame = useCallback(() => {
     // 提交最新缩放状态（每帧至多一次，且始终取最新值，快速滚轮不丢步）
     if (pendingZoomRef.current !== null) {
@@ -112,7 +312,8 @@ export const HistoryCanvas: React.FC<HistoryCanvasProps> = ({
     }
 
     setScrollState({ scrollLeft, scrollTop, clientWidth, clientHeight });
-  }, [onZoomChange, onActivePeriodChange]);
+    queueSaveView();
+  }, [onZoomChange, onActivePeriodChange, queueSaveView]);
 
   const scheduleFlush = useCallback(() => {
     if (frameRafRef.current !== null) return;
@@ -130,6 +331,10 @@ export const HistoryCanvas: React.FC<HistoryCanvasProps> = ({
     flushFrame();
   }, [flushFrame]);
 
+  // —— 视窗位置记忆：按虚拟画布坐标（除以缩放）缓存，下次打开恢复到上次停留处 ——
+  const savedViewRef = useRef<{ x: number; y: number } | null>(null);
+  const saveTimerRef = useRef<number | null>(null);
+
   // Update viewport metrics and active period（滚动状态刷新按帧合并，避免滚轮期间逐事件重渲染）
   const handleScroll = useCallback(() => {
     if (!containerRef.current) return;
@@ -146,6 +351,7 @@ export const HistoryCanvas: React.FC<HistoryCanvasProps> = ({
   useEffect(
     () => () => {
       if (frameRafRef.current !== null) cancelAnimationFrame(frameRafRef.current);
+      if (saveTimerRef.current !== null) window.clearTimeout(saveTimerRef.current);
     },
     []
   );
@@ -185,11 +391,21 @@ export const HistoryCanvas: React.FC<HistoryCanvasProps> = ({
   const navigateToCard = useCallback(
     (eventId: string) => {
       setSelectedEventId(eventId);
+      // 目标事件若在同年合并组内，先切换到对应选项卡
+      const groupId = EVENT_GROUP_OF[eventId];
+      if (groupId) {
+        setGroupActiveTab((prev) =>
+          prev[groupId] === eventId ? prev : { ...prev, [groupId]: eventId }
+        );
+      }
       const coord = EVENT_LAYOUT_COORDS[eventId];
       if (coord && containerRef.current) {
+        // 编辑模式可能调整过卡片位置，居中跳转需按当前实际左边界计算
+        const savedX = groupId ? cardXs?.[groupId] : undefined;
+        const cardX = typeof savedX === 'number' ? savedX : coord.x;
         const targetScrollLeft = Math.max(
           0,
-          (coord.x + CARD_WIDTH / 2) * zoomLevelRef.current - containerRef.current.clientWidth / 2
+          (cardX + (coord.width ?? CARD_WIDTH) / 2) * zoomLevelRef.current - containerRef.current.clientWidth / 2
         );
         const targetScrollTop = Math.max(
           0,
@@ -202,22 +418,56 @@ export const HistoryCanvas: React.FC<HistoryCanvasProps> = ({
         });
       }
     },
-    []
+    [cardXs]
   );
+
+  // 搜索定位到组内成员时，自动切换到该成员所在选项卡，保证高亮内容可见
+  useEffect(() => {
+    if (!currentMatchedEventId) return;
+    const groupId = EVENT_GROUP_OF[currentMatchedEventId];
+    if (!groupId) return;
+    setGroupActiveTab((prev) =>
+      prev[groupId] === currentMatchedEventId ? prev : { ...prev, [groupId]: currentMatchedEventId }
+    );
+  }, [currentMatchedEventId]);
 
   useEffect(() => {
     onRegisterJumpHandler(jumpToPeriod);
     onRegisterNavigateHandler(navigateToCard);
   }, [jumpToPeriod, navigateToCard, onRegisterJumpHandler, onRegisterNavigateHandler]);
 
-  // Initial size measure & window resize listener
+  // 初始定位：优先恢复上次停留位置，首次打开则从 1840 年开始
   useEffect(() => {
+    const el = containerRef.current;
+    if (el) {
+      let target: { x: number; y: number } | null = savedViewRef.current;
+      if (!target) {
+        try {
+          const raw = localStorage.getItem(VIEW_STATE_KEY);
+          if (raw) {
+            const parsed = JSON.parse(raw) as { x?: number; y?: number };
+            if (typeof parsed.x === 'number') {
+              target = { x: parsed.x, y: typeof parsed.y === 'number' ? parsed.y : 0 };
+            }
+          }
+        } catch {
+          // 缓存损坏时回落到默认起始年
+        }
+      }
+      const zoom = zoomLevelRef.current || 1;
+      el.style.scrollBehavior = 'auto';
+      el.scrollLeft = Math.max(0, (target ? target.x : START_VIEW_X) * zoom);
+      el.scrollTop = Math.max(0, (target ? target.y : 0) * zoom);
+    }
     handleScroll();
     window.addEventListener('resize', handleScroll);
     return () => {
       window.removeEventListener('resize', handleScroll);
     };
-  }, [handleScroll]);
+    // 仅在挂载时恢复一次视窗位置：若依赖 handleScroll（其依赖链含内联 onActivePeriodChange），
+    // 父组件每次渲染都会重跑本 effect 并回写 scrollLeft，打断上/下搜索切换刚发起的平滑跳转
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Global Pointer Events for instantaneous 1:1 hardware drag panning (same smoothness as mouse wheel)
   useEffect(() => {
@@ -383,26 +633,32 @@ export const HistoryCanvas: React.FC<HistoryCanvasProps> = ({
     const minVisibleY = scrollTop / zoomLevel;
     const maxVisibleY = (scrollTop + clientHeight) / zoomLevel;
 
-    // Filter events in current horizontal window
-    const inWindowEvents = HISTORY_EVENTS.filter((ev) => {
-      if (!activeTracks.has(ev.track)) return false;
-      const coord = EVENT_LAYOUT_COORDS[ev.id];
-      if (!coord) return false;
-      return coord.x + CARD_WIDTH >= minVisibleX - 10 && coord.x <= maxVisibleX + 10;
-    });
+    // 以「同年合并组」为单位取窗口内当前展示的卡片（每组只产生一个上下箭头）
+    const inWindowCards = EVENT_GROUPS
+      .filter((g) => activeTracks.has(g.track))
+      .map((g) => {
+        const activeId = groupActiveTab[g.groupId] ?? g.primaryId;
+        const coord = EVENT_LAYOUT_COORDS[activeId];
+        // 上下指示箭头需跟随编辑模式调整后的实际位置
+        const movedX = resolveGroupX(g.groupId, g.x);
+        return {
+          event: EVENT_BY_ID[activeId],
+          coord: coord ? { ...coord, x: movedX } : coord,
+        };
+      })
+      .filter((item) => {
+        if (!item.event || !item.coord) return false;
+        const { coord } = item;
+        return coord.x + (coord.width ?? CARD_WIDTH) >= minVisibleX - 10 && coord.x <= maxVisibleX + 10;
+      });
 
     // Hidden above: card bottom is completely above visible top edge (under 96px top ruler)
-    const aboveRaw = inWindowEvents
-      .filter((ev) => {
-        const coord = EVENT_LAYOUT_COORDS[ev.id];
-        const cardBottom = coord.y + 260;
-        return cardBottom <= minVisibleY + 96;
-      })
-      .map((ev) => {
-        const coord = EVENT_LAYOUT_COORDS[ev.id];
-        const screenX = (coord.x + CARD_WIDTH / 2) * zoomLevel - scrollLeft;
+    const aboveRaw = inWindowCards
+      .filter(({ coord }) => coord.y + 260 <= minVisibleY + 96)
+      .map(({ event, coord }) => {
+        const screenX = (coord.x + (coord.width ?? CARD_WIDTH) / 2) * zoomLevel - scrollLeft;
         return {
-          event: ev,
+          event,
           coord,
           screenX,
         };
@@ -422,16 +678,12 @@ export const HistoryCanvas: React.FC<HistoryCanvasProps> = ({
     });
 
     // Hidden below: card top is completely below visible bottom edge
-    const belowRaw = inWindowEvents
-      .filter((ev) => {
-        const coord = EVENT_LAYOUT_COORDS[ev.id];
-        return coord.y >= maxVisibleY - 70;
-      })
-      .map((ev) => {
-        const coord = EVENT_LAYOUT_COORDS[ev.id];
-        const screenX = (coord.x + CARD_WIDTH / 2) * zoomLevel - scrollLeft;
+    const belowRaw = inWindowCards
+      .filter(({ coord }) => coord.y >= maxVisibleY - 70)
+      .map(({ event, coord }) => {
+        const screenX = (coord.x + (coord.width ?? CARD_WIDTH) / 2) * zoomLevel - scrollLeft;
         return {
-          event: ev,
+          event,
           coord,
           screenX,
         };
@@ -453,10 +705,20 @@ export const HistoryCanvas: React.FC<HistoryCanvasProps> = ({
       hiddenAboveCards: above,
       hiddenBelowCards: below,
     };
-  }, [scrollState, zoomLevel, activeTracks]);
+  }, [scrollState, zoomLevel, activeTracks, groupActiveTab, resolveGroupX]);
 
   // Color styles and theme labels for ▲ / ▼ according to the track (3 tracks)
-  const getTriangleTheme = (trackId: TrackId) => {
+  const getTriangleTheme = (trackId: TrackId, isMarxism = false) => {
+    // 马原·科学社会主义卡片为灰调主题，指示标同步使用 slate 灰，与卡片头部一致
+    if (isMarxism) {
+      return {
+        themeName: '马原·科学社会主义',
+        color: 'text-slate-500 dark:text-zinc-400',
+        fill: '#94a3b8',
+        btnClass:
+          'bg-slate-100/95 dark:bg-zinc-800/90 border-slate-300 dark:border-zinc-700 text-slate-600 dark:text-zinc-300 hover:bg-slate-200 dark:hover:bg-zinc-700/90 shadow-xs',
+      };
+    }
     switch (trackId) {
       case 'meeting':
         return {
@@ -539,39 +801,84 @@ export const HistoryCanvas: React.FC<HistoryCanvasProps> = ({
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, []);
 
-  const scrollProgress =
-    containerRef.current && containerRef.current.scrollWidth > containerRef.current.clientWidth
-      ? scrollState.scrollLeft /
-        (containerRef.current.scrollWidth - containerRef.current.clientWidth)
-      : 0;
+  // ── 全局俯瞰图 Minimap 计算 ──
+  const MAP_WIDTH = TOTAL_CANVAS_WIDTH;
+  const virtualScrollX = scrollState.scrollLeft / zoomLevel;
+  const virtualClientW = scrollState.clientWidth / zoomLevel;
+
+  const minimapEvents = useMemo(
+    () =>
+      EVENT_GROUPS
+        .filter((g) => activeTracks.has(g.track))
+        .map((g) => ({
+          id: g.groupId,
+          track: g.track,
+          xPct: ((g.exactX + g.width / 2) / MAP_WIDTH) * 100,
+        })),
+    [activeTracks]
+  );
+
+  const minimapPeriods = useMemo(
+    () =>
+      PERIOD_BOUNDARIES.map((p) => ({
+        id: p.id,
+        title: p.shortTitle,
+        xPct: (p.startX / MAP_WIDTH) * 100,
+      })),
+    []
+  );
+
+  // 当前视口中心所在区段的时间比例系数（1.5× 表示处于密集期放大区段）
+  const viewScale = getScaleAtX(virtualScrollX + virtualClientW / 2);
+  // 选中事件所属的同年合并组（用于俯瞰图高亮）
+  const selectedGroupId = selectedEventId ? EVENT_GROUP_OF[selectedEventId] : undefined;
+  const visibleEventCount = HISTORY_EVENTS.filter((e) => activeTracks.has(e.track)).length;
+
+  const viewportBox = {
+    leftPct: Math.max(0, (virtualScrollX / MAP_WIDTH) * 100),
+    widthPct: Math.min(100, (virtualClientW / MAP_WIDTH) * 100),
+  };
+
+  const handleMinimapClick = useCallback(
+    (e: React.MouseEvent<HTMLDivElement>) => {
+      const rect = e.currentTarget.getBoundingClientRect();
+      const clickPct = (e.clientX - rect.left) / rect.width;
+      const targetX = clickPct * TOTAL_CANVAS_WIDTH;
+      scrollToX(targetX);
+    },
+    [scrollToX]
+  );
 
   return (
-    <div className="relative flex-1 w-full h-full overflow-hidden bg-slate-100/70 dark:bg-slate-950 flex flex-col select-none">
+    <div className="c73">
       {/* Top ▲ markers at exact horizontal X of each hidden card (Direct clean triangle, no bounce animation) */}
       {hiddenAboveCards.map(({ event, coord, displayX }) => {
-        const theme = getTriangleTheme(event.track);
+        const theme = getTriangleTheme(
+          event.track,
+          Boolean(event.isScientificSocialism || event.periodId === 0)
+        );
         return (
           <div
             key={`above-${event.id}`}
             style={{
               position: 'absolute',
               left: `${displayX}px`,
-              top: '100px',
+              top: `${Math.round(96 * zoomLevel + 6)}px`,
               zIndex: 35,
               transform: 'translateX(-50%)',
             }}
           >
             <button
               onClick={() => scrollToY(coord.y)}
-              className={`group relative flex items-center justify-center w-7 h-7 rounded-md border backdrop-blur-md transition-transform hover:scale-110 active:scale-95 cursor-pointer ${theme.btnClass}`}
+              className={`c112 hover:scale-110 active:scale-95 ${theme.btnClass}`}
               title={`点击向上移动至【${theme.themeName}】: ${event.title}`}
             >
               <svg viewBox="0 0 10 9" className="w-3.5 h-3" fill={theme.fill} aria-hidden="true">
                 <polygon points="5 0.5, 9.5 8.5, 0.5 8.5" />
               </svg>
               {/* Micro hover tooltip */}
-              <div className="absolute top-full mt-1.5 hidden group-hover:flex z-50 flex-col items-center pointer-events-none whitespace-nowrap">
-                <span className="px-2 py-1 rounded bg-slate-900 dark:bg-slate-100 text-white dark:text-slate-900 text-[11px] font-medium shadow-md">
+              <div className="absolute top-full mt-1.5 z-50 flex-col items-center pointer-events-none whitespace-nowrap hidden group-hover:flex">
+                <span className="c78" style={theme.fill ? { background: '#0f172a', color: '#f1f5f9' } : undefined}>
                   {theme.themeName} · {event.title}
                 </span>
               </div>
@@ -582,7 +889,10 @@ export const HistoryCanvas: React.FC<HistoryCanvasProps> = ({
 
       {/* Bottom ▼ markers at exact horizontal X of each hidden card (Direct clean triangle, no bounce animation) */}
       {hiddenBelowCards.map(({ event, coord, displayX }) => {
-        const theme = getTriangleTheme(event.track);
+        const theme = getTriangleTheme(
+          event.track,
+          Boolean(event.isScientificSocialism || event.periodId === 0)
+        );
         return (
           <div
             key={`below-${event.id}`}
@@ -596,7 +906,7 @@ export const HistoryCanvas: React.FC<HistoryCanvasProps> = ({
           >
             <button
               onClick={() => scrollToY(coord.y)}
-              className={`group relative flex items-center justify-center w-7 h-7 rounded-md border backdrop-blur-md transition-transform hover:scale-110 active:scale-95 cursor-pointer ${theme.btnClass}`}
+              className={`c112 hover:scale-110 active:scale-95 ${theme.btnClass}`}
               title={`点击向下移动至【${theme.themeName}】: ${event.title}`}
             >
               <svg viewBox="0 0 10 9" className="w-3.5 h-3" fill={theme.fill} aria-hidden="true">
@@ -604,7 +914,7 @@ export const HistoryCanvas: React.FC<HistoryCanvasProps> = ({
               </svg>
               {/* Micro hover tooltip */}
               <div className="absolute bottom-full mb-1.5 hidden group-hover:flex z-50 flex-col items-center pointer-events-none whitespace-nowrap">
-                <span className="px-2 py-1 rounded bg-slate-900 dark:bg-slate-100 text-white dark:text-slate-900 text-[11px] font-medium shadow-md">
+                <span className="c78 shadow-md">
                   {theme.themeName} · {event.title}
                 </span>
               </div>
@@ -622,10 +932,36 @@ export const HistoryCanvas: React.FC<HistoryCanvasProps> = ({
           willChange: 'scroll-position',
           touchAction: 'none',
         }}
-        className={`relative flex-1 w-full h-full overflow-x-auto overflow-y-auto select-none ${
+        className={`c74 ${
           isDragging ? 'cursor-grabbing' : 'cursor-grab'
         }`}
       >
+        {/* 顶部时间轴固定层：脱离缩放变换，垂直方向始终吸附视口顶部；负边距抵消占位，保持画布坐标原点不变 */}
+        <div
+          className="sticky top-0 z-30"
+          style={{
+            width: `${Math.round(TOTAL_CANVAS_WIDTH * zoomLevel)}px`,
+            height: `${Math.round(96 * zoomLevel)}px`,
+            marginBottom: `${-Math.round(96 * zoomLevel)}px`,
+          }}
+        >
+          <div
+            style={{
+              width: `${TOTAL_CANVAS_WIDTH}px`,
+              height: '96px',
+              transform: `scale(${zoomLevel})`,
+              transformOrigin: '0 0',
+            }}
+          >
+            <TimelineScale
+              showGuides={false}
+              scrollLeft={scrollState.scrollLeft / zoomLevel}
+              onJumpToPeriod={(startX) => scrollToX(startX)}
+              onJumpToX={(x) => scrollToX(x)}
+            />
+          </div>
+        </div>
+
         {/* Sizing wrapper ensuring container scrollWidth/scrollHeight tracks zoomLevel exactly */}
         <div
           ref={wrapperRef}
@@ -650,8 +986,9 @@ export const HistoryCanvas: React.FC<HistoryCanvasProps> = ({
             }}
             className="origin-top-left"
           >
-            {/* Top Timeline Scale Ruler with Discrete Years */}
+            {/* 画布缩放层内只保留泳道背景引导线，刻度条移出到下方固定层 */}
             <TimelineScale
+              showRuler={false}
               scrollLeft={scrollState.scrollLeft / zoomLevel}
               onJumpToPeriod={(startX) => scrollToX(startX)}
               onJumpToX={(x) => scrollToX(x)}
@@ -670,12 +1007,14 @@ export const HistoryCanvas: React.FC<HistoryCanvasProps> = ({
               activeEventId={activeEventId}
               selectedEventId={selectedEventId}
               showConnections={showConnections}
+              cardHeights={cardHeights}
+              coords={resolvedCoords}
               onSelectEvent={navigateToCard}
             />
 
             {/* Orthogonal Horizontal-Vertical Leader Lines for displaced cards pointing to exact ticks */}
             <LeaderLinesLayer
-              leaderLines={EVENT_LEADER_LINES}
+              leaderLines={leaderLines}
               activeTracks={activeTracks}
               activeEventId={activeEventId}
               selectedEventId={selectedEventId}
@@ -683,30 +1022,63 @@ export const HistoryCanvas: React.FC<HistoryCanvasProps> = ({
               onSelectEvent={navigateToCard}
             />
 
+            {/* 大事记锚点（非核心显示）：只补时间轴背景节点，不参与卡片布局与真题匹配 */}
+            {MARKER_COORDS.length > 0 && (
+              <div
+                className="absolute pointer-events-none"
+                style={{ left: 0, top: 1662, width: `${TOTAL_CANVAS_WIDTH}px` }}
+              >
+                {MARKER_COORDS.map((marker) => (
+                  <div
+                    key={marker.id}
+                    title={marker.note ? `${marker.title}｜${marker.note}` : marker.title}
+                    className="absolute whitespace-nowrap rounded-full border border-dashed border-slate-300/80 bg-white/75 px-1.5 py-0.5 text-[10px] leading-none text-slate-500 pointer-events-auto dark:border-slate-600/70 dark:bg-slate-800/75 dark:text-slate-400"
+                    style={{ left: `${marker.x}px`, top: `${marker.tier * MARKER_ROW_GAP}px` }}
+                  >
+                    <span className="font-semibold text-slate-600 dark:text-slate-300">{marker.label}</span>
+                    <span className="ml-1">{marker.title}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+
             {/* Event Cards (pointer-events set to none during drag to preserve 60fps) */}
             <div style={{ pointerEvents: isDragging ? 'none' : 'auto' }}>
-              {HISTORY_EVENTS.map((event, globalIndex) => {
-                const coord = EVENT_LAYOUT_COORDS[event.id];
-                if (!coord) return null;
+              {EVENT_GROUPS.map((group, groupIndex) => {
+                if (!activeTracks.has(group.track)) return null;
 
-                const isTrackVisible = activeTracks.has(event.track);
-                if (!isTrackVisible) return null;
+                // 同组内默认展示核心枢纽，其次为时间最早的一张；用户切换后按切换结果显示
+                const activeId = groupActiveTab[group.groupId] ?? group.primaryId;
+                const event = EVENT_BY_ID[activeId];
+                const coord = EVENT_LAYOUT_COORDS[activeId];
+                if (!event || !coord) return null;
+
+                const groupEvents = group.memberIds
+                  .map((id) => EVENT_BY_ID[id])
+                  .filter((m): m is HistoryEvent => Boolean(m));
 
                 const matchesSearch = isEventMatchingSearch(event);
                 const isCardActive = activeEventId === event.id;
                 const isCardSelected = selectedEventId === event.id;
-                const isDimmed = searchQuery.trim() !== '' && !matchesSearch;
+                // 选中态与搜索态共用同一套淡化样式：非相关卡片降到 30% 透明度并轻微缩小
+                const isSelectionRelated =
+                  !relatedEventIds ||
+                  relatedEventIds.has(event.id) ||
+                  group.memberIds.some((id) => relatedEventIds.has(id));
+                const isDimmed =
+                  (searchQuery.trim() !== '' && !matchesSearch) || !isSelectionRelated;
 
                 const trackDef = TRACKS.find((t) => t.id === event.track)!;
                 const isHighlighted = isCardActive || isCardSelected || event.id === currentMatchedEventId;
-                const zIndex = getCardZIndex(event, globalIndex, isCardActive, isCardSelected, isHighlighted);
+                const cardX = resolveGroupX(group.groupId, coord.x);
+                const zIndex = getCardZIndex(event, groupIndex, isCardActive, isCardSelected, isHighlighted);
 
                 return (
                   <div
-                    key={event.id}
+                    key={group.groupId}
                     style={{
                       position: 'absolute',
-                      left: `${coord.x}px`,
+                      left: `${cardX}px`,
                       top: `${coord.y}px`,
                       zIndex,
                     }}
@@ -723,10 +1095,28 @@ export const HistoryCanvas: React.FC<HistoryCanvasProps> = ({
                       searchMatchRank={
                         event.id === currentMatchedEventId ? searchMatchRank : undefined
                       }
+                      cardWidth={
+                        cardWidths?.[group.groupId] ?? cardWidths?.[activeId] ?? coord.width
+                      }
+                      isEditMode={isEditMode}
+                      onResizeWidth={(eventId, width) =>
+                        // 同一卡片位上的多个事件共用一张卡，宽度按组保存，切换 sheet 后保持
+                        onResizeCard?.(EVENT_GROUP_OF[eventId] ?? eventId, width)
+                      }
+                      resizeScale={zoomLevel}
+                      placedX={cardX}
+                      dragScale={zoomLevel}
+                      onMoveCard={isEditMode ? handleMoveCard : undefined}
+                      onMoveCardEnd={handleMoveCardEnd}
+                      groupEvents={groupEvents}
+                      onTabChange={(id) => handleTabChange(group.groupId, id)}
                       onHover={handleCardHover}
                       onSelect={handleCardSelect}
                       onOpenDetail={handleCardDetail}
+                      onOpenPractice={onOpenPracticeModal}
+                      examCount={examCounts?.[event.id]}
                       onNavigateTo={navigateToCard}
+                      onCardHeight={handleCardHeight}
                     />
                   </div>
                 );
@@ -736,24 +1126,102 @@ export const HistoryCanvas: React.FC<HistoryCanvasProps> = ({
         </div>
       </div>
 
-      {/* Floating Canvas Navigation Mini Bar (Bottom Right) */}
-      <div className="absolute bottom-4 right-6 z-30 flex items-center gap-2 bg-white/90 dark:bg-slate-900/90 backdrop-blur-md px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-800 shadow-lg text-xs">
-        <Navigation className="w-3.5 h-3.5 text-slate-400 shrink-0" />
-        <span className="text-slate-500 font-mono text-[11px]">
-          横向进度 {Math.round(scrollProgress * 100)}%
-        </span>
-        <div className="w-20 h-1.5 bg-slate-200 dark:bg-slate-700 rounded-full overflow-hidden">
-          <div
-            className="h-full bg-amber-500 rounded-full transition-all duration-75"
-            style={{ width: `${Math.max(scrollProgress * 100, 4)}%` }}
-          />
+      {/* 全局俯瞰图 Minimap（Bottom Right） */}
+      <div className="c113">
+        <div className="c146">
+          <span className="font-bold">全局俯瞰图</span>
+          {/* 轨道图例开关：决策 / 斗争 / 思想，悬浮即可显隐对应轨道 */}
+          <div className="flex items-center gap-0.5">
+            {TRACKS.map((t) => {
+              const isActive = activeTracks.has(t.id);
+              const shortLabel =
+                t.id === 'meeting' ? '决策' : t.id === 'armed' ? '斗争' : '思想';
+              return (
+                <button
+                  key={t.id}
+                  onClick={() => onToggleTrack(t.id)}
+                  title={`${isActive ? '隐藏' : '显示'}${t.badge}`}
+                  className={`flex items-center gap-1 px-1.5 py-0.5 rounded transition-colors cursor-pointer ${
+                    isActive
+                      ? 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 font-semibold'
+                      : 'text-slate-400 hover:text-slate-600 dark:hover:text-slate-300'
+                  }`}
+                >
+                  <span
+                    className="w-1.5 h-1.5 rounded-full"
+                    style={{ backgroundColor: t.dotColor }}
+                  />
+                  <span>{shortLabel}</span>
+                </button>
+              );
+            })}
+          </div>
+          <span className="flex items-center gap-1.5">
+            <span className="c147">
+              {visibleEventCount} 事件 · {minimapEvents.length} 卡片位 · {minimapPeriods.length - 1} 时期
+            </span>
+            <span
+              className={`text-[10px] font-mono px-1.5 py-0.5 rounded ${
+                viewScale !== 1
+                  ? 'bg-amber-500/15 text-amber-600 dark:text-amber-400 font-semibold'
+                  : 'bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400'
+              }`}
+              title="当前视口所在区段的时间轴比例系数（1919-1950 为 1.5× 放大区段）"
+            >
+              {viewScale < 0.1 ? viewScale.toFixed(2) : viewScale.toFixed(1)}×
+            </span>
+          </span>
         </div>
+        <div className="c148" style={{ height: 56 }} onClick={handleMinimapClick}>
+          {/* 三轨道横向背景色带 */}
+          <div className="absolute top-0 left-0 right-0 h-1/3 bg-red-500/8 dark:bg-red-500/10" />
+          <div className="absolute top-1/3 left-0 right-0 h-1/3 bg-amber-500/8 dark:bg-amber-500/10 border-y border-slate-200/60 dark:border-slate-700/50" />
+          <div className="absolute top-2/3 left-0 right-0 h-1/3 bg-emerald-500/8 dark:bg-emerald-500/10" />
 
-        <div className="h-3 w-[1px] bg-slate-200 dark:bg-slate-700 mx-1" />
+          {/* 时期分界竖线 */}
+          {minimapPeriods.map((p) => (
+            <div
+              key={`period-sep-${p.id}`}
+              className="c151"
+              style={{ left: `${p.xPct}%` }}
+              title={p.title}
+            />
+          ))}
 
-        <div className="flex items-center gap-1.5 text-[11px] text-slate-500">
-          <MapPin className="w-3 h-3 text-amber-500 shrink-0" />
-          <span>拖拽平移 · 滚轮缩放 · Alt+滚轮上下滚动</span>
+          {/* 事件散点 —— 三轨道精确分段：meeting 0-33%, armed 33-66%, works 66-100% */}
+          {minimapEvents.map((e) => {
+            const trackColor =
+              e.track === 'meeting'
+                ? 'bg-red-600'
+                : e.track === 'armed'
+                ? 'bg-amber-600'
+                : 'bg-emerald-600';
+            const isSelected = e.id === selectedGroupId;
+            const topY =
+              e.track === 'meeting'
+                ? 17 // 红带上缘 17%
+                : e.track === 'armed'
+                ? 50 // 琥珀带中心
+                : 83; // 翠绿带下缘 83%
+            return (
+              <div
+                key={`mm-${e.id}`}
+                className={`c149 ${trackColor} ${isSelected ? 'w-3 h-3 ring-2 ring-amber-400' : ''}`}
+                style={{ left: `${e.xPct}%`, top: `${topY}%` }}
+              />
+            );
+          })}
+
+          {/* 当前视口矩形框 */}
+          <div
+            className="c150"
+            style={{
+              left: `${viewportBox.leftPct}%`,
+              width: `${viewportBox.widthPct}%`,
+              top: '0',
+              height: '100%',
+            }}
+          />
         </div>
       </div>
     </div>

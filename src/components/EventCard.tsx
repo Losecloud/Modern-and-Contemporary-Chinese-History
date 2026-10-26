@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useRef } from 'react';
 import { HistoryEvent, TrackDefinition } from '../types/history';
 import { HighlightText, HighlightSearch } from './HighlightText';
 import {
@@ -11,6 +11,7 @@ import {
   GitBranch,
   Search,
   Globe2,
+  FileQuestion,
 } from 'lucide-react';
 
 interface EventCardProps {
@@ -25,11 +26,40 @@ interface EventCardProps {
   searchMatchRank?: { current: number; total: number };
   cardWidth?: string | number;
   isCompact?: boolean;
+  /** 同年合并组内的全部事件（>1 时在卡片顶部渲染 sheet 选项卡） */
+  groupEvents?: HistoryEvent[];
+  /** 切换到同组内指定事件 */
+  onTabChange?: (eventId: string) => void;
   onHover: (id: string | null) => void;
   onSelect: (event: HistoryEvent) => void;
   onOpenDetail: (event: HistoryEvent) => void;
+  /** 直接打开该卡片的真题练习弹窗 */
+  onOpenPractice?: (event: HistoryEvent) => void;
+  /** 该卡片可练习的真题数量；undefined 表示仍在计算 */
+  examCount?: number;
   onNavigateTo: (targetId: string) => void;
+  /** 编辑模式：显示右边界宽度拖拽手柄 */
+  isEditMode?: boolean;
+  onResizeWidth?: (eventId: string, width: number) => void;
+  /** 编辑模式：卡片当前左边界画布 X（拖拽起点） */
+  placedX?: number;
+  /** 画布缩放系数：拖拽位移需除以该系数才能换算为卡片实际位移 */
+  dragScale?: number;
+  /** 编辑模式：水平拖拽中实时回传新的左边界 X */
+  onMoveCard?: (eventId: string, x: number) => void;
+  /** 编辑模式：拖拽结束（用于提交并持久化位置） */
+  onMoveCardEnd?: () => void;
+  /** 画布缩放系数：拖拽位移需除以该系数才能换算为卡片实际宽度 */
+  resizeScale?: number;
+  /** 上报卡片实际渲染高度：连线以「边界中点」为锚点，需要真实高度而非估算值 */
+  onCardHeight?: (eventId: string, height: number) => void;
 }
+
+/** 选项卡标题：取事件名主段并限长，避免同年多卡时选项卡撑爆 */
+const shortTabLabel = (title: string): string => {
+  const head = title.split(/[：:（(]/)[0].trim() || title;
+  return head.length > 9 ? `${head.slice(0, 9)}…` : head;
+};
 
 export const EventCard = React.memo<EventCardProps>(({
   event,
@@ -43,25 +73,85 @@ export const EventCard = React.memo<EventCardProps>(({
   searchMatchRank,
   cardWidth,
   isCompact = false,
+  groupEvents,
+  onTabChange,
   onHover,
   onSelect,
   onOpenDetail,
+  onOpenPractice,
+  examCount,
   onNavigateTo,
+  isEditMode = false,
+  onResizeWidth,
+  placedX,
+  dragScale = 1,
+  onMoveCard,
+  onMoveCardEnd,
+  resizeScale = 1,
+  onCardHeight,
 }) => {
   const isMarxism = Boolean(event.isScientificSocialism || event.periodId === 0);
+  const hasTabs = Boolean(groupEvents && groupEvents.length > 1);
+  /** 拖拽结束后短时间内屏蔽 click，避免把拖动误判为选中卡片 */
+  const suppressClickUntilRef = useRef(0);
+  /** 卡片根节点：用于向画布上报真实高度（连线锚点取边界中点） */
+  const rootRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const el = rootRef.current;
+    if (!el || !onCardHeight) return;
+    const report = () => {
+      const height = Math.round(el.offsetHeight);
+      if (height > 0) onCardHeight(event.id, height);
+    };
+    report();
+    if (typeof ResizeObserver === 'undefined') return;
+    const observer = new ResizeObserver(report);
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [event.id, onCardHeight]);
+
+  /** 编辑模式：按住卡片主体左右拖动（按钮与缩放手柄除外），避免与画布平移冲突 */
+  const handleCardPointerDown = (e: React.PointerEvent) => {
+    if (!isEditMode || !onMoveCard || e.button !== 0) return;
+    const target = e.target as HTMLElement;
+    if (target.closest('button, a, input, textarea')) return;
+    e.preventDefault();
+    e.stopPropagation();
+    const startClientX = e.clientX;
+    const startX = placedX ?? 0;
+    const scale = dragScale || 1;
+    let moved = false;
+    const handleMove = (ev: PointerEvent) => {
+      if (!moved && Math.abs(ev.clientX - startClientX) < 3) return;
+      moved = true;
+      onMoveCard(event.id, startX + (ev.clientX - startClientX) / scale);
+    };
+    const handleUp = () => {
+      window.removeEventListener('pointermove', handleMove);
+      window.removeEventListener('pointerup', handleUp);
+      window.removeEventListener('pointercancel', handleUp);
+      if (!moved) return;
+      suppressClickUntilRef.current = Date.now() + 350;
+      onMoveCardEnd?.();
+    };
+    window.addEventListener('pointermove', handleMove);
+    window.addEventListener('pointerup', handleUp);
+    window.addEventListener('pointercancel', handleUp);
+  };
 
   const getTrackIcon = () => {
     if (isMarxism) {
-      return <Globe2 className="w-4 h-4 text-slate-400 shrink-0" />;
+      return <Globe2 className="c3 c111" />;
     }
     switch (event.track) {
       case 'meeting':
-        return <Building2 className="w-4 h-4 text-red-600 dark:text-red-400 shrink-0" />;
+        return <Building2 className="c3 c108" />;
       case 'armed':
-        return <ShieldAlert className="w-4 h-4 text-amber-600 dark:text-amber-400 shrink-0" />;
+        return <ShieldAlert className="c3 c109" />;
       case 'works':
       default:
-        return <BookOpen className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0" />;
+        return <BookOpen className="c3 c110" />;
     }
   };
 
@@ -116,64 +206,146 @@ export const EventCard = React.memo<EventCardProps>(({
   return (
     <div
       id={`event-card-${event.id}`}
+      ref={rootRef}
       onMouseEnter={() => onHover(event.id)}
       onMouseLeave={() => onHover(null)}
-      onClick={() => onSelect(event)}
+      onPointerDown={isEditMode && onMoveCard ? handleCardPointerDown : undefined}
+      onClick={() => {
+        if (Date.now() < suppressClickUntilRef.current) return;
+        onSelect(event);
+      }}
       style={{ width: cardWidth ?? '380px' }}
-      className={`group relative flex flex-col rounded-xl backdrop-blur-xs border transition-all duration-200 cursor-pointer select-text text-left ${getCardContainerClass()} ${getBorderColor()} ${
+      className={`c39 ${getCardContainerClass()} ${getBorderColor()} ${
+        isEditMode && onMoveCard ? 'cursor-grab active:cursor-grabbing select-none' : ''
+      } ${
         isDimmed ? 'opacity-30 blur-[0.5px] scale-[0.98]' : 'opacity-100 scale-100'
       } ${event.isMilestone ? 'ring-1 ring-amber-500/30' : ''}`}
     >
+      {/* 编辑模式：右边界拖拽手柄，用于调整卡片宽度 */}
+      {isEditMode && onResizeWidth && (
+        <div
+          onPointerDown={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            const cardEl = e.currentTarget.parentElement as HTMLElement | null;
+            const startX = e.clientX;
+            const startWidth = cardEl?.offsetWidth ?? 380;
+            const scale = resizeScale || 1;
+            const handleMove = (ev: PointerEvent) => {
+              const next = Math.min(760, Math.max(180, startWidth + (ev.clientX - startX) / scale));
+              onResizeWidth(event.id, Math.round(next));
+            };
+            const handleUp = () => {
+              window.removeEventListener('pointermove', handleMove);
+              window.removeEventListener('pointerup', handleUp);
+            };
+            window.addEventListener('pointermove', handleMove);
+            window.addEventListener('pointerup', handleUp);
+          }}
+          onClick={(e) => e.stopPropagation()}
+          className="absolute top-0 bottom-0 right-0 translate-x-1/2 w-2 cursor-col-resize z-20 rounded-full bg-amber-400/40 hover:bg-amber-400/80"
+          title="拖拽调整卡片宽度"
+        />
+      )}
+
+      {/* 同年合并 sheet 选项卡：按时间排序，核心枢纽带星标并可优先展示 */}
+      {hasTabs && (
+        <div className="flex items-stretch gap-1 px-2 pt-2 pb-1.5 rounded-t-xl border-b border-slate-200/70 dark:border-slate-700/60 bg-slate-100/80 dark:bg-slate-800/60">
+          {groupEvents!.map((member) => {
+            const isTabActive = member.id === event.id;
+            return (
+              <button
+                key={member.id}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onTabChange?.(member.id);
+                }}
+                onMouseEnter={() => {
+                  if (!isTabActive) onTabChange?.(member.id);
+                }}
+                title={member.title}
+                className={`flex-1 min-w-0 flex items-center justify-center gap-1 px-1.5 py-1 rounded-md text-[10.5px] leading-none transition-colors cursor-pointer ${
+                  isTabActive
+                    ? 'bg-white dark:bg-slate-900 font-bold text-slate-800 dark:text-slate-100 shadow-sm ring-1 ring-slate-200/80 dark:ring-slate-700'
+                    : 'text-slate-500 dark:text-slate-400 hover:bg-white/70 dark:hover:bg-slate-900/60'
+                }`}
+              >
+                {member.isMilestone && <Sparkles className="w-2.5 h-2.5 shrink-0 text-amber-500" />}
+                <span className="truncate">{shortTabLabel(member.title)}</span>
+              </button>
+            );
+          })}
+        </div>
+      )}
+
       {/* Current Search Target Badge */}
       {isCurrentSearchFocus && searchMatchRank && (
-        <div className="absolute -top-3 left-4 z-20 flex items-center gap-1 bg-amber-500 text-white text-[11px] font-bold px-2.5 py-0.5 rounded-full shadow-md">
-          <Search className="w-3 h-3" />
+        <div className="c60">
+          <Search className="c1" />
           <span>匹配结果 ({searchMatchRank.current}/{searchMatchRank.total})</span>
         </div>
       )}
 
       {/* Milestone Indicator */}
-      {event.isMilestone && !isCurrentSearchFocus && (
-        <div className="absolute -top-2.5 right-12 z-20 flex items-center gap-1 bg-amber-500 text-white text-[11px] font-medium px-2 py-0.5 rounded-full shadow-xs">
-          <Sparkles className="w-3 h-3" />
+      {event.isMilestone && !isCurrentSearchFocus && !hasTabs && (
+        <div className="c61">
+          <Sparkles className="c1" />
           <span>核心枢纽</span>
         </div>
       )}
 
       {/* Card Header (In compact mode this is the entire card body for maximum density) */}
-      <div className={`p-3.5 ${getHeaderBg()} ${isCompact ? 'rounded-xl' : 'rounded-t-xl'} flex flex-col gap-1`}>
-        <div className="flex items-center justify-between gap-2 text-xs">
-          <div className="flex items-center gap-1.5 font-medium">
+      <div className={`c42 ${getHeaderBg()} ${isCompact ? 'rounded-xl' : hasTabs ? 'rounded-none' : 'rounded-t-xl'}`}>
+        <div className="c43">
+          <div className="c10 font-medium">
             {getTrackIcon()}
-            {isMarxism ? (
+            {isMarxism && (
               <span className="px-1.5 py-0.5 rounded text-[10px] font-medium bg-slate-200/80 dark:bg-zinc-800/80 text-slate-600 dark:text-zinc-400 border border-slate-300/70 dark:border-zinc-700/60 shadow-2xs">
                 马原·科学社会主义
               </span>
-            ) : (
-              <span className={track.accentText}>{track.shortName}</span>
             )}
-            <span className={isMarxism ? 'text-slate-400 dark:text-zinc-500' : ''} aria-hidden="true">·</span>
-            <span className={`font-mono tabular-nums ${isMarxism ? 'text-slate-500 dark:text-zinc-400 font-medium' : 'text-slate-700 dark:text-slate-300'}`}>
+            <span className={`c24 ${isMarxism ? 'text-slate-500 dark:text-zinc-400 font-medium' : 'text-slate-700 dark:text-slate-300'}`}>
               {event.dateStr}
             </span>
           </div>
 
-          {/* Top-right button specifically triggers full detail view */}
-          <button
-            onClick={(e) => {
-              e.stopPropagation();
-              onOpenDetail(event);
-            }}
-            className={`flex items-center gap-1 px-1.5 py-0.5 rounded border transition-colors shadow-2xs ${
-              isMarxism
-                ? 'bg-white/90 dark:bg-zinc-800/70 border-slate-200 dark:border-zinc-700 text-slate-500 dark:text-zinc-400 hover:text-slate-800 dark:hover:text-zinc-200 hover:border-slate-400'
-                : 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:text-amber-600 dark:hover:text-amber-400 hover:border-amber-400'
-            }`}
-            title="查看完整原话及深度解析"
-          >
-            <Maximize2 className="w-3 h-3" />
-            <span className="text-[10.5px]">详情</span>
-          </button>
+          {/* Top-right exam entry: count + direct practice modal, followed by full detail */}
+          <div className="c10 shrink-0">
+            {onOpenPractice && (
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onOpenPractice(event);
+                }}
+                disabled={examCount === 0}
+                className={`shrink-0 inline-flex items-center gap-1 px-1.5 py-1 rounded-md border text-[10.5px] font-medium transition-colors ${
+                  examCount === 0
+                    ? 'border-slate-200 dark:border-slate-700 text-slate-300 dark:text-slate-600 cursor-default'
+                    : 'border-amber-300/80 bg-amber-50/80 text-amber-700 hover:bg-amber-100 dark:border-amber-800/60 dark:bg-amber-950/30 dark:text-amber-300 dark:hover:bg-amber-950/50 cursor-pointer'
+                }`}
+                title={
+                  examCount === 0
+                    ? '本题库暂无与该知识点对应的真题'
+                    : `点击直接练习该知识点的真题${examCount ? `（${examCount} 道）` : ''}`
+                }
+              >
+                <FileQuestion className="w-3 h-3" />
+                <span className="font-mono tabular-nums leading-none">
+                  {examCount ?? '…'}
+                </span>
+              </button>
+            )}
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                onOpenDetail(event);
+              }}
+              className="shrink-0 p-1.5 rounded-md text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
+              title="查看完整原话及深度解析"
+            >
+              <Maximize2 className="c1" />
+            </button>
+          </div>
         </div>
 
         <h3 className={`text-[15.5px] font-semibold tracking-tight leading-snug ${isMarxism ? 'text-slate-750 dark:text-zinc-200' : 'text-slate-900 dark:text-slate-100'}`}>
@@ -191,11 +363,11 @@ export const EventCard = React.memo<EventCardProps>(({
       {!isCompact && (
         <>
           {/* Card Body: Objective font size, Verbatim text, In-place Highlights */}
-          <div className={`p-3.5 flex flex-col gap-2.5 text-[14px] leading-relaxed ${isMarxism ? 'text-slate-600 dark:text-zinc-300' : 'text-slate-800 dark:text-slate-200'}`}>
+          <div className={`c47 ${isMarxism ? 'c49' : 'c48'}`}>
             {event.items.map((item, idx) => (
               <div
                 key={idx}
-                className="relative text-[13.5px] leading-[1.65] font-normal tracking-[0.01em]"
+                className="c50"
               >
                 <HighlightText
                   text={item.text}
@@ -211,13 +383,11 @@ export const EventCard = React.memo<EventCardProps>(({
             {/* Exam Summary / Historical takeaway verbatim quote */}
             {event.examSummary && (
               <div
-                className={`mt-1 p-2.5 rounded-lg border text-[13px] leading-relaxed ${
-                  isMarxism
-                    ? 'bg-slate-100/70 dark:bg-zinc-800/40 border-slate-200/80 dark:border-zinc-700/60 text-slate-600 dark:text-zinc-300 shadow-2xs'
-                    : 'bg-amber-50/80 dark:bg-amber-950/40 border-amber-200/80 dark:border-amber-800/50 text-amber-950 dark:text-amber-200'
+                className={`c51 ${
+                  isMarxism ? 'c53' : 'c52'
                 }`}
               >
-                <div className={`text-[11px] font-medium tracking-wide mb-1 flex items-center gap-1 ${
+                <div className={`text-[11px] font-medium tracking-wide mb-1 ${
                   isMarxism ? 'text-slate-500 dark:text-zinc-400' : 'text-amber-700 dark:text-amber-400'
                 }`}>
                   <span>★ 核心考点原话结论</span>
@@ -254,14 +424,12 @@ export const EventCard = React.memo<EventCardProps>(({
           {/* Card Footer: Mind Map Branch Links */}
           {event.connections.length > 0 && (
             <div
-              className={`mt-auto px-3.5 py-2.5 rounded-b-xl border-t flex flex-wrap items-center gap-1.5 text-[11.5px] ${
-                isMarxism
-                  ? 'bg-slate-50/60 dark:bg-zinc-900/40 border-slate-200/70 dark:border-zinc-800/60 text-slate-500 dark:text-zinc-400'
-                  : 'bg-slate-50/80 dark:bg-slate-800/40 border-slate-100 dark:border-slate-800 text-slate-600 dark:text-slate-300'
+              className={`c44 ${
+                isMarxism ? 'c46' : 'c45'
               }`}
             >
               <span className={`flex items-center gap-1 shrink-0 ${isMarxism ? 'text-slate-400 dark:text-zinc-500' : 'text-slate-400 dark:text-slate-500'}`}>
-                <GitBranch className="w-3 h-3" />
+                <GitBranch className="c1" />
                 <span>导图分支:</span>
               </span>
               {event.connections.map((conn, idx) => (
@@ -271,10 +439,8 @@ export const EventCard = React.memo<EventCardProps>(({
                     e.stopPropagation();
                     onNavigateTo(conn.targetId);
                   }}
-                  className={`inline-flex items-center gap-0.5 px-2 py-0.5 rounded border transition-colors cursor-pointer ${
-                    isMarxism
-                      ? 'bg-white/80 dark:bg-zinc-800/60 border-slate-200 dark:border-zinc-700/60 text-slate-600 dark:text-zinc-300 hover:text-slate-900 dark:hover:text-zinc-100 hover:border-slate-400'
-                      : 'bg-white dark:bg-slate-700 border-slate-200 dark:border-slate-600 text-slate-700 dark:text-slate-300 hover:text-amber-600 dark:hover:text-amber-400 hover:border-amber-400'
+                  className={`c54 ${
+                    isMarxism ? 'c56' : 'c55'
                   }`}
                   title={`导图跳转到: ${conn.label}`}
                 >

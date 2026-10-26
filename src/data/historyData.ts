@@ -1,4 +1,4 @@
-import type { HistoryEvent, PeriodInfo, TrackDefinition } from '../types/history';
+import type { HistoryEvent, HistoryMarker, PeriodInfo, TrackDefinition } from '../types/history';
 
 /**
  * 知识卡片数据来自外部独立数据文件 data/historyData.js（JSON 结构，含 tracks/periods/events），
@@ -9,6 +9,7 @@ export interface HistoryDataBundle {
   tracks: TrackDefinition[];
   periods: PeriodInfo[];
   events: HistoryEvent[];
+  markers?: HistoryMarker[];
 }
 
 declare global {
@@ -27,3 +28,4 @@ const DATA: HistoryDataBundle =
 export const TRACKS: TrackDefinition[] = DATA.tracks;
 export const PERIODS: PeriodInfo[] = DATA.periods;
 export const HISTORY_EVENTS: HistoryEvent[] = DATA.events;
+export const HISTORY_MARKERS: HistoryMarker[] = DATA.markers ?? [];

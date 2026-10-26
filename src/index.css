@@ -1,4 +1,8 @@
 @import "tailwindcss";
+@import "./aliases.css";
+
+/* 深浅模式改由 html 上的 .dark 类驱动，便于顶栏按钮手动切换 */
+@custom-variant dark (&:where(.dark, .dark *));
 
 /* 显式声明扫描源：确保 src 下所有组件的 Tailwind 工具类都被完整生成 */
 @source "./**/*.{ts,tsx}";
@@ -14,7 +18,6 @@
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", "WenQuanYi Micro Hei", sans-serif;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
-    user-select: none;
   }
 }
 

@@ -78,6 +78,11 @@ function inlineSingleFile(): Plugin {
           if (fs.statSync(from).isFile()) fs.copyFileSync(from, path.join(distDataDir, name));
         }
       }
+      // 真题练习子页面（独立静态应用）整体复制进 dist
+      const practiceDir = path.resolve(__dirname, 'practice');
+      if (fs.existsSync(practiceDir)) {
+        fs.cpSync(practiceDir, path.resolve(__dirname, 'dist/practice'), { recursive: true });
+      }
     },
   };
 }
